@@ -1,172 +1,280 @@
-import React, { useState } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, BookOpen, Edit, Trash2, Calendar } from 'lucide-react';
 import Modal from './Modal';
+import RoleBadge from './RoleBadge';
+import { getHomework, createHomework, updateHomework, deleteHomework, getClasses } from '../services/api';
 
-const HomeworkManagement = ({ data, setData, user }) => {
+const HomeworkManagement = ({ user }) => {
+  const [homeworks, setHomeworks] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHomework, setEditingHomework] = useState(null);
-  const [formData, setFormData] = useState({
-    titre: '', description: '', date_limite: '', classe_id: ''
-  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Filtrer les devoirs selon rôle
-  const getHomeworks = () => {
-    if (user.role === 'admin') return data.devoirs;
-    if (user.role === 'professeur') return data.devoirs.filter(d => d.professeur_id === user.id);
-    if (user.role === 'eleve') return data.devoirs.filter(d => d.classe_id === user.classe_id);
-    if (user.role === 'parent') {
-      const enfant = data.users.find(u => u.parent_id === user.id);
-      return enfant ? data.devoirs.filter(d => d.classe_id === enfant.classe_id) : [];
+  useEffect(() => {
+    loadHomeworks();
+    if (user.role === 'admin' || user.role === 'professeur') {
+      loadClasses();
     }
-    return [];
+  }, []);
+
+  const loadHomeworks = async () => {
+    try {
+      setLoading(true);
+      const response = await getHomework();
+      setHomeworks(response.data);
+    } catch (error) {
+      setError('Erreur lors du chargement des devoirs');
+      console.error('Erreur:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Ouvre le modal
-  const openModal = (homework = null) => {
+  const loadClasses = async () => {
+    try {
+      const response = await getClasses();
+      setClasses(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des classes:', error);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const homeworkData = {
+      titre: formData.get('titre'),
+      description: formData.get('description'),
+      date_limite: formData.get('date_limite'),
+      classe_id: parseInt(formData.get('classe_id'))
+    };
+
+    try {
+      if (editingHomework) {
+        await updateHomework(editingHomework.id, homeworkData);
+      } else {
+        await createHomework(homeworkData);
+      }
+      setIsModalOpen(false);
+      setEditingHomework(null);
+      loadHomeworks();
+      e.target.reset();
+    } catch (error) {
+      setError('Erreur lors de la sauvegarde du devoir');
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleEdit = (homework) => {
     setEditingHomework(homework);
-    setFormData(homework || { titre: '', description: '', date_limite: '', classe_id: user.classe_id || '' });
     setIsModalOpen(true);
   };
 
-  // Gestion du formulaire
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setData(prev => ({
-      ...prev,
-      devoirs: editingHomework
-        ? prev.devoirs.map(homework => homework.id === editingHomework.id ? { ...formData, id: homework.id } : homework)
-        : [...prev.devoirs, { ...formData, id: Date.now(), professeur_id: user.id, classe_id: parseInt(formData.classe_id) }]
-    }));
-    setIsModalOpen(false);
-  };
-
-  // Suppression d'un devoir
-  const handleDelete = (homeworkId) => {
-    if (window.confirm('Supprimer ce devoir ?')) {
-      setData(prev => ({
-        ...prev,
-        devoirs: prev.devoirs.filter(homework => homework.id !== homeworkId)
-      }));
+  const handleDelete = async (homeworkId) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce devoir ?')) {
+      try {
+        await deleteHomework(homeworkId);
+        loadHomeworks();
+      } catch (error) {
+        setError('Erreur lors de la suppression du devoir');
+        console.error('Erreur:', error);
+      }
     }
   };
 
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   const canEdit = user.role === 'admin' || user.role === 'professeur';
-  const homeworks = getHomeworks();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold text-title">
-          {user.role === 'parent' ? 'Devoirs de votre enfant' : user.role === 'eleve' ? 'Mes devoirs' : 'Gestion des devoirs'}
-        </h2>
-        {canEdit && (
-          <button onClick={() => openModal()} className="flex items-center gap-2 btn-primary mt-4 sm:mt-0">
-            <Plus size={16} />
-            Nouveau devoir
-          </button>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Devoirs</h2>
+            <p className="text-gray-600">Gestion des devoirs du Centre Scolaire</p>
+          </div>
+          {canEdit && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors mt-4 sm:mt-0"
+            >
+              <Plus size={16} />
+              Nouveau devoir
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            {error}
+          </div>
         )}
-      </div>
-      <div className="grid gap-4">
-        {homeworks.map(homework => {
-          const classe = data.classes.find(c => c.id === homework.classe_id);
-          const professeur = data.users.find(u => u.id === homework.professeur_id);
-          const isOverdue = new Date(homework.date_limite) < new Date();
-          return (
-            <div key={homework.id} className={`card ${isOverdue ? 'border-[var(--rouge-erreur)]' : 'border-[var(--vert-accent)]'}`}>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-semibold text-title">{homework.titre}</h3>
-                  <div className="text-sm text-body mt-1 flex flex-col sm:flex-row sm:gap-4">
-                    <span>Classe: {classe?.nom}</span>
-                    {user.role !== 'professeur' && <span>Professeur: {professeur?.prenom} {professeur?.nom}</span>}
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {homeworks.map((homework) => (
+            <div key={homework.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">{homework.titre}</h3>
+                  <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-white/80" />
+                    <span className="text-sm text-white/80">{formatDate(homework.date_limite)}</span>
                   </div>
                 </div>
-                {canEdit && (
-                  <div className="flex gap-2 mt-4 sm:mt-0">
-                    <button onClick={() => openModal(homework)} className="text-[var(--bleu-principal)] hover:text-opacity-80">
-                      <Edit size={16} />
-                    </button>
-                    <button onClick={() => handleDelete(homework.id)} className="text-[var(--rouge-erreur)] hover:text-opacity-80">
-                      <Trash2 size={16} />
-                    </button>
+              </div>
+              <div className="p-4">
+                <p className="text-gray-600 text-sm mb-4">{homework.description}</p>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-500">
+                    <span className="font-medium">Classe:</span> {homework.classe?.nom}
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(homework)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(homework.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {homework.professeur && (
+                  <div className="mt-2 text-sm text-gray-500">
+                    <span className="font-medium">Professeur:</span> {homework.professeur.prenom} {homework.professeur.nom}
                   </div>
                 )}
               </div>
-              <p className="text-body mb-3 text-sm sm:text-base">{homework.description}</p>
-              <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${
-                isOverdue ? 'bg-[var(--rouge-erreur)] text-[var(--blanc-pur)]' : 'bg-[var(--vert-clair)] text-[var(--vert-accent)]'
-              }`}>
-                À rendre le: {new Date(homework.date_limite).toLocaleDateString('fr-FR')}
-                {isOverdue && ' (En retard)'}
-              </div>
             </div>
-          );
-        })}
-        {homeworks.length === 0 && <div className="text-center py-8 text-body">Aucun devoir</div>}
+          ))}
+        </div>
+
+        {homeworks.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun devoir</h3>
+            <p className="text-gray-500">
+              {canEdit 
+                ? 'Créez le premier devoir en cliquant sur "Nouveau devoir"'
+                : 'Aucun devoir n\'a été créé pour le moment'
+              }
+            </p>
+          </div>
+        )}
       </div>
-      {canEdit && (
-        <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          title={editingHomework ? 'Modifier devoir' : 'Nouveau devoir'}
-        >
-          <div className="space-y-4">
+
+      {/* Modal pour créer/modifier un devoir */}
+      <Modal isOpen={isModalOpen} onClose={() => {
+        setIsModalOpen(false);
+        setEditingHomework(null);
+      }}>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingHomework ? 'Modifier le devoir' : 'Nouveau devoir'}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-body mb-1">Titre</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Titre
+              </label>
               <input
                 type="text"
-                value={formData.titre}
-                onChange={(e) => setFormData({...formData, titre: e.target.value})}
-                className="input"
+                name="titre"
+                defaultValue={editingHomework?.titre}
                 required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Titre du devoir"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-body mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Description
+              </label>
               <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                className="input h-32"
+                name="description"
+                defaultValue={editingHomework?.description}
                 required
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Description du devoir"
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-body mb-1">Date limite</label>
-                <input
-                  type="date"
-                  value={formData.date_limite}
-                  onChange={(e) => setFormData({...formData, date_limite: e.target.value})}
-                  className="input"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-body mb-1">Classe</label>
-                <select
-                  value={formData.classe_id}
-                  onChange={(e) => setFormData({...formData, classe_id: e.target.value})}
-                  className="input"
-                  required
-                >
-                  <option value="">Sélectionner une classe</option>
-                  {data.classes.map(classe => (
-                    <option key={classe.id} value={classe.id}>{classe.nom}</option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Classe
+              </label>
+              <select
+                name="classe_id"
+                defaultValue={editingHomework?.classe_id}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Sélectionnez une classe</option>
+                {classes.map((classe) => (
+                  <option key={classe.id} value={classe.id}>
+                    {classe.nom}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded hover:bg-[var(--bleu-clair)] text-body text-sm sm:text-base">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Date limite
+              </label>
+              <input
+                type="date"
+                name="date_limite"
+                defaultValue={editingHomework?.date_limite?.split('T')[0]}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingHomework(null);
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
                 Annuler
               </button>
-              <button onClick={handleSubmit} className="btn-primary">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
                 {editingHomework ? 'Modifier' : 'Créer'}
               </button>
             </div>
-          </div>
-        </Modal>
-      )}
+          </form>
+        </div>
+      </Modal>
     </div>
   );
 };

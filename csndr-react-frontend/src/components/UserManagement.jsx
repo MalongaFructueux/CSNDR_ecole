@@ -1,52 +1,98 @@
-import React, { useState } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Trash2, Edit } from 'lucide-react';
 import Modal from './Modal';
-import { mockData } from '../mockData';
-import { saveUser, deleteUser as apiDeleteUser } from '../services/api';
+import RoleBadge from './RoleBadge';
+import { getUsers, createUser, deleteUser, updateUser } from '../services/api';
 import Toast from './Toast';
 import ConfirmDialog from './ConfirmDialog';
 
-const UserManagement = ({ data = mockData, setData = () => {}, refreshUsers = async () => {} }) => {
+const UserManagement = ({ user }) => {
+  const [users, setUsers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
-    nom: '', prenom: '', email: '', password: '', role: 'eleve', classe_id: ''
+    nom: '',
+    prenom: '',
+    email: '',
+    mot_de_passe: '',
+    role: 'eleve',
+    classe_id: '',
+    parent_id: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState({ open: false, type: 'success', message: '' });
   const [confirm, setConfirm] = useState({ open: false, id: null });
+  const [error, setError] = useState(null);
+
+  const loadUsers = async () => {
+    try {
+      const response = await getUsers();
+      setUsers(response.data);
+    } catch (err) {
+      console.error(err);
+      setToast({ open: true, type: 'error', message: "Erreur lors de la récupération des utilisateurs" });
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   // Ouvre le modal pour création/édition
   const openModal = (user = null) => {
     setEditingUser(user);
-    setFormData(user || { nom: '', prenom: '', email: '', password: '', role: 'eleve', classe_id: '' });
+    setFormData(user || {
+      nom: '',
+      prenom: '',
+      email: '',
+      mot_de_passe: '',
+      role: 'eleve',
+      classe_id: '',
+      parent_id: ''
+    });
     setIsModalOpen(true);
   };
 
   // Gestion du formulaire
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const formDataObj = new FormData(e.target);
+    const userData = {
+      nom: formDataObj.get('nom'),
+      prenom: formDataObj.get('prenom'),
+      email: formDataObj.get('email'),
+      mot_de_passe: formDataObj.get('mot_de_passe'),
+      role: formDataObj.get('role'),
+      classe_id: formDataObj.get('classe_id') || null,
+      parent_id: formDataObj.get('parent_id') || null
+    };
+
     try {
       setSubmitting(true);
-      // For now, only create new users via API
-      if (!editingUser) {
-        await saveUser({
-          nom: formData.nom,
-          prenom: formData.prenom,
-          email: formData.email,
-          password: formData.password,
-          role: formData.role,
-          classe_id: formData.classe_id || null,
-        });
-        setToast({ open: true, type: 'success', message: "Utilisateur créé avec succès" });
+      if (editingUser) {
+        // Modification d'un utilisateur existant
+        await updateUser(editingUser.id, userData);
+        setToast({ open: true, type: 'success', message: "Utilisateur modifié avec succès" });
       } else {
-        setToast({ open: true, type: 'error', message: 'La modification utilisateur sera ajoutée prochainement.' });
+        // Création d'un nouvel utilisateur
+        await createUser(userData);
+        setToast({ open: true, type: 'success', message: "Utilisateur créé avec succès" });
       }
-      await refreshUsers();
       setIsModalOpen(false);
-    } catch (err) {
-      console.error(err);
-      setToast({ open: true, type: 'error', message: "Erreur lors de l'enregistrement de l'utilisateur" });
+      setEditingUser(null);
+      setFormData({
+        nom: '',
+        prenom: '',
+        email: '',
+        mot_de_passe: '',
+        role: 'eleve',
+        classe_id: '',
+        parent_id: ''
+      });
+      loadUsers();
+    } catch (error) {
+      console.error('Erreur:', error);
+      setToast({ open: true, type: 'error', message: "Erreur lors de la sauvegarde de l'utilisateur" });
     } finally {
       setSubmitting(false);
     }
@@ -61,12 +107,12 @@ const UserManagement = ({ data = mockData, setData = () => {}, refreshUsers = as
     try {
       const userId = confirm.id;
       setConfirm({ open: false, id: null });
-      await apiDeleteUser(userId);
-      await refreshUsers();
+      await deleteUser(userId);
+      await loadUsers();
       setToast({ open: true, type: 'success', message: 'Utilisateur supprimé' });
     } catch (err) {
       console.error(err);
-      setToast({ open: true, type: 'error', message: "Erreur lors de la suppression de l'utilisateur" });
+      setToast({ open: true, type: 'error', message: 'Erreur lors de la suppression de l\'utilisateur' });
     }
   };
 
@@ -79,107 +125,126 @@ const UserManagement = ({ data = mockData, setData = () => {}, refreshUsers = as
           Nouvel utilisateur
         </button>
       </div>
-      <div className="card responsive-table">
-        <table className="w-full">
-          <thead className="bg-[var(--bleu-clair)]">
-            <tr>
-              <th className="px-4 py-3 text-left text-title">Nom</th>
-              <th className="px-4 py-3 text-left text-title">Prénom</th>
-              <th className="px-4 py-3 text-left text-title">Email</th>
-              <th className="px-4 py-3 text-left text-title">Rôle</th>
-              <th className="px-4 py-3 text-left text-title">Classe</th>
-              <th className="px-4 py-3 text-left text-title">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data?.users || []).map(user => (
-              <tr key={user.id} className="border-t">
-                <td data-label="Nom" className="px-4 py-3 text-body">{user.nom}</td>
-                <td data-label="Prénom" className="px-4 py-3 text-body">{user.prenom}</td>
-                <td data-label="Email" className="px-4 py-3 text-body">{user.email}</td>
-                <td data-label="Rôle" className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded text-sm ${
-                    user.role === 'admin' ? 'bg-[var(--rouge-erreur)] text-[var(--blanc-pur)]' :
-                    user.role === 'professeur' ? 'bg-[var(--bleu-principal)] text-[var(--blanc-pur)]' :
-                    user.role === 'parent' ? 'bg-[var(--vert-accent)] text-[var(--blanc-pur)]' :
-                    'bg-[var(--orange-secondaire)] text-[var(--blanc-pur)]'
-                  }`}>
-                    {user.role}
-                  </span>
-                </td>
-                <td data-label="Classe" className="px-4 py-3 text-body">
-                  {user.classe_id && (data?.classes || []).find(c => c.id === user.classe_id)?.nom}
-                </td>
-                <td data-label="Actions" className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => openModal(user)} className="text-[var(--bleu-principal)] hover:text-opacity-80">
-                      <Edit size={16} />
-                    </button>
-                    <button onClick={() => handleDelete(user.id)} className="text-[var(--rouge-erreur)] hover:text-opacity-80">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {users.map(user => (
+          <div key={user.id} className="card border-[var(--vert-accent)]">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg sm:text-xl font-semibold text-title">{user.prenom} {user.nom}</h3>
+                <p className="text-sm text-body">{user.email}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => openModal(user)} className="text-[var(--bleu-principal)] hover:text-opacity-80">
+                  <Edit size={16} />
+                </button>
+                <button onClick={() => handleDelete(user.id)} className="text-[var(--rouge-erreur)] hover:text-opacity-80">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <RoleBadge role={user.role} />
+              <div className="text-sm text-body">
+                <p>ID: {user.id}</p>
+                {user.classe_id && <p>Classe ID: {user.classe_id}</p>}
+                {user.parent_id && <p>Parent ID: {user.parent_id}</p>}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingUser ? 'Modifier utilisateur' : 'Nouvel utilisateur'}
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      {/* Modal pour créer/modifier un utilisateur */}
+      <Modal isOpen={isModalOpen} onClose={() => {
+        setIsModalOpen(false);
+        setEditingUser(null);
+        setFormData({
+          nom: '',
+          prenom: '',
+          email: '',
+          mot_de_passe: '',
+          role: 'eleve',
+          classe_id: '',
+          parent_id: ''
+        });
+      }}>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nom
+                </label>
+                <input
+                  type="text"
+                  name="nom"
+                  value={formData.nom}
+                  onChange={(e) => setFormData({...formData, nom: e.target.value})}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Nom de famille"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Prénom
+                </label>
+                <input
+                  type="text"
+                  name="prenom"
+                  value={formData.prenom}
+                  onChange={(e) => setFormData({...formData, prenom: e.target.value})}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Prénom"
+                />
+              </div>
+            </div>
+            
             <div>
-              <label className="block text-sm font-medium text-body mb-1">Nom</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
+              </label>
               <input
-                type="text"
-                value={formData.nom}
-                onChange={(e) => setFormData({...formData, nom: e.target.value})}
-                className="input"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
                 required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="email@exemple.com"
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-body mb-1">Prénom</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Mot de passe
+              </label>
               <input
-                type="text"
-                value={formData.prenom}
-                onChange={(e) => setFormData({...formData, prenom: e.target.value})}
-                className="input"
+                type="password"
+                name="mot_de_passe"
+                value={formData.mot_de_passe}
+                onChange={(e) => setFormData({...formData, mot_de_passe: e.target.value})}
                 required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Mot de passe"
               />
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-              className="input"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Mot de passe</label>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-              className="input"
-              required
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
             <div>
-              <label className="block text-sm font-medium text-body mb-1">Rôle</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Rôle
+              </label>
               <select
+                name="role"
                 value={formData.role}
                 onChange={(e) => setFormData({...formData, role: e.target.value})}
-                className="input"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
                 <option value="admin">Administrateur</option>
                 <option value="professeur">Professeur</option>
@@ -187,37 +252,81 @@ const UserManagement = ({ data = mockData, setData = () => {}, refreshUsers = as
                 <option value="eleve">Élève</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-body mb-1">Classe</label>
-              <select
-                value={formData.classe_id || ''}
-                onChange={(e) => setFormData({...formData, classe_id: e.target.value ? parseInt(e.target.value) : null})}
-                className="input"
-              >
-                <option value="">Aucune classe</option>
-                {(data?.classes || []).map(classe => (
-                  <option key={classe.id} value={classe.id}>{classe.nom}</option>
-                ))}
-              </select>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Classe ID (optionnel)
+                </label>
+                <input
+                  type="number"
+                  name="classe_id"
+                  value={formData.classe_id}
+                  onChange={(e) => setFormData({...formData, classe_id: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="ID de la classe"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Parent ID (optionnel)
+                </label>
+                <input
+                  type="number"
+                  name="parent_id"
+                  value={formData.parent_id}
+                  onChange={(e) => setFormData({...formData, parent_id: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="ID du parent"
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded hover:bg-[var(--bleu-clair)] text-body text-sm sm:text-base">
-              Annuler
-            </button>
-            <button onClick={handleSubmit} className="btn-primary" disabled={submitting}>
-              {submitting ? 'Enregistrement…' : (editingUser ? 'Modifier' : 'Créer')}
-            </button>
-          </div>
+            
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingUser(null);
+                  setFormData({
+                    nom: '',
+                    prenom: '',
+                    email: '',
+                    mot_de_passe: '',
+                    role: 'eleve',
+                    classe_id: '',
+                    parent_id: ''
+                  });
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {submitting ? 'Enregistrement...' : (editingUser ? 'Modifier' : 'Créer')}
+              </button>
+            </div>
+          </form>
         </div>
       </Modal>
-      <Toast {...toast} onClose={() => setToast({...toast, open: false})} />
+
+      {/* Toast pour les notifications */}
+      <Toast
+        open={toast.open}
+        type={toast.type}
+        message={toast.message}
+        onClose={() => setToast({ ...toast, open: false })}
+      />
+
+      {/* Dialog de confirmation pour la suppression */}
       <ConfirmDialog
         open={confirm.open}
-        title="Supprimer l'utilisateur"
+        title="Confirmer la suppression"
         message="Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible."
-        confirmText="Supprimer"
-        cancelText="Annuler"
         onConfirm={confirmDelete}
         onCancel={() => setConfirm({ open: false, id: null })}
       />

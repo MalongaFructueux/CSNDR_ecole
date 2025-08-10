@@ -1,70 +1,199 @@
-# Getting Started with Create React App
+# Centre Scolaire Notre Dame du Rosaire - Système de Gestion
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Description
 
-## Available Scripts
+Système de gestion complet pour le Centre Scolaire Notre Dame du Rosaire de Brazzaville, Congo. Cette application permet la gestion des utilisateurs, des messages, des événements, des devoirs et des notes selon les rôles définis.
 
-In the project directory, you can run:
+## Fonctionnalités
 
-### `npm start`
+### 🔐 Système d'authentification
+- Connexion sécurisée avec tokens JWT
+- Gestion des rôles utilisateurs (Admin, Professeur, Parent, Élève)
+- Interface adaptée selon le rôle de l'utilisateur
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 💬 Système de messagerie
+- Envoi et réception de messages entre utilisateurs
+- Conversations en temps réel
+- Restrictions selon les rôles :
+  - **Admin** : Peut discuter avec tout le monde
+  - **Professeur** : Peut discuter avec admin, autres professeurs, parents et élèves de sa classe
+  - **Parent** : Peut discuter avec admin, professeurs et ses enfants
+  - **Élève** : Accès limité aux messages
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 📅 Gestion des événements
+- **Admin uniquement** : Création, modification et suppression d'événements
+- Consultation des événements par tous les utilisateurs
+- Interface moderne avec design responsive
 
-### `npm test`
+### 📚 Gestion des devoirs
+- **Admin et Professeurs** : Création et gestion des devoirs
+- **Parents** : Consultation des devoirs de leurs enfants
+- **Élèves** : Consultation des devoirs de leur classe
+- Dates limites et descriptions détaillées
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 📊 Gestion des notes
+- **Admin et Professeurs** : Création et gestion des notes
+- **Parents** : Consultation des notes de leurs enfants
+- **Élèves** : Consultation de leurs propres notes
+- Système de notation sur 20 avec commentaires
 
-### `npm run build`
+### 👥 Gestion des utilisateurs
+- **Admin uniquement** : Création et gestion des comptes utilisateurs
+- Attribution des rôles et classes
+- Interface d'administration complète
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Architecture Technique
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Frontend (React.js)
+- **Framework** : React 18 avec Hooks
+- **Styling** : Tailwind CSS avec design system personnalisé
+- **Routing** : React Router v6
+- **State Management** : useState et useEffect
+- **UI Components** : Composants modulaires réutilisables
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Backend (Laravel)
+- **Framework** : Laravel 10
+- **Authentication** : Laravel Sanctum (JWT)
+- **Database** : MySQL avec migrations
+- **API** : RESTful API avec validation
+- **CORS** : Configuration pour développement
 
-### `npm run eject`
+## Structure des Rôles
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### 🎯 Admin
+- Accès complet à toutes les fonctionnalités
+- Gestion des utilisateurs, classes, événements
+- Création de devoirs et notes
+- Messagerie avec tous les utilisateurs
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 👨‍🏫 Professeur
+- Gestion des devoirs pour ses classes
+- Création et modification de notes
+- Messagerie avec admin, collègues, parents et élèves
+- Consultation des événements
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### 👨‍👩‍👧‍👦 Parent
+- Consultation des devoirs de ses enfants
+- Consultation des notes de ses enfants
+- Messagerie avec admin, professeurs et ses enfants
+- Consultation des événements
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 👨‍🎓 Élève
+- Consultation de ses devoirs
+- Consultation de ses notes
+- Messagerie limitée
+- Consultation des événements
 
-## Learn More
+## Installation
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Prérequis
+- Node.js 16+ et npm
+- PHP 8.1+ et Composer
+- MySQL 8.0+
+- Laravel CLI
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Frontend
+```bash
+cd csndr-react-frontend
+npm install
+npm start
+```
 
-### Code Splitting
+### Backend
+```bash
+cd csndr-react-frontend/csndr-laravel-backend
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+php artisan serve
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Configuration
 
-### Analyzing the Bundle Size
+### Variables d'environnement Backend
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=csndr_db
+DB_USERNAME=root
+DB_PASSWORD=
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+SANCTUM_STATEFUL_DOMAINS=localhost:3000
+SESSION_DOMAIN=localhost
+```
 
-### Making a Progressive Web App
+### Configuration Frontend
+Le frontend est configuré pour se connecter à `http://127.0.0.1:8000/api` par défaut.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Design System
 
-### Advanced Configuration
+### Couleurs
+- **Primary Blue** : #1D4ED8 (Bleu principal)
+- **Secondary Blue** : #3B82F6 (Bleu secondaire)
+- **Success Green** : #10B981 (Vert succès)
+- **Warning Yellow** : #F59E0B (Jaune avertissement)
+- **Error Red** : #EF4444 (Rouge erreur)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+### Rôles et Couleurs
+- **Admin** : Rouge (#DC2626)
+- **Professeur** : Vert (#059669)
+- **Parent** : Bleu (#2563EB)
+- **Élève** : Violet (#7C3AED)
 
-### Deployment
+## API Endpoints
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+### Authentication
+- `POST /api/auth/login` - Connexion
+- `POST /api/auth/logout` - Déconnexion
 
-### `npm run build` fails to minify
+### Messages
+- `GET /api/messages` - Liste des messages
+- `GET /api/messages/conversations` - Conversations
+- `GET /api/messages/available-users` - Utilisateurs disponibles
+- `POST /api/messages` - Envoyer un message
+- `GET /api/messages/{id}` - Messages d'une conversation
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+### Événements
+- `GET /api/events` - Liste des événements
+- `POST /api/events` - Créer un événement (Admin)
+- `PUT /api/events/{id}` - Modifier un événement (Admin)
+- `DELETE /api/events/{id}` - Supprimer un événement (Admin)
+
+### Devoirs
+- `GET /api/homework` - Liste des devoirs
+- `POST /api/homework` - Créer un devoir (Admin/Prof)
+- `PUT /api/homework/{id}` - Modifier un devoir (Admin/Prof)
+- `DELETE /api/homework/{id}` - Supprimer un devoir (Admin/Prof)
+
+### Notes
+- `GET /api/grades` - Liste des notes
+- `POST /api/grades` - Créer une note (Admin/Prof)
+- `PUT /api/grades/{id}` - Modifier une note (Admin/Prof)
+- `DELETE /api/grades/{id}` - Supprimer une note (Admin/Prof)
+
+## Sécurité
+
+- Authentification JWT avec Laravel Sanctum
+- Validation des données côté serveur
+- Protection CSRF
+- Gestion des permissions par rôle
+- Validation des accès aux ressources
+
+## Déploiement
+
+### Production
+1. Configurer les variables d'environnement
+2. Optimiser Laravel (`php artisan config:cache`, `php artisan route:cache`)
+3. Build du frontend (`npm run build`)
+4. Configurer le serveur web (Apache/Nginx)
+5. Configurer SSL/TLS
+
+## Support
+
+Pour toute question ou problème, contactez l'équipe de développement.
+
+## Licence
+
+Projet privé pour le Centre Scolaire Notre Dame du Rosaire de Brazzaville.

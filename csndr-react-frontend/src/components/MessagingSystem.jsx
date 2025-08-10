@@ -1,209 +1,359 @@
-import React, { useState } from 'react';
-import { Plus, MessageCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Send, MessageCircle, User } from 'lucide-react';
 import Modal from './Modal';
+import RoleBadge from './RoleBadge';
+import { getConversations, getAvailableUsers, sendMessage as sendMessageApi, getConversationMessages } from '../services/api';
 
-const MessagingSystem = ({ data, setData, user }) => {
+/**
+ * Composant MessagingSystem - Système de messagerie complet avec gestion des conversations
+ * 
+ * Ce composant gère :
+ * - L'affichage des conversations existantes
+ * - L'envoi de nouveaux messages
+ * - La gestion des conversations en temps réel
+ * - Les restrictions selon les rôles utilisateurs
+ * 
+ * Fonctionnalités principales :
+ * - Interface de chat moderne avec design responsive
+ * - Gestion des conversations groupées par utilisateur
+ * - Envoi et réception de messages en temps réel
+ * - Modal pour créer de nouvelles conversations
+ * - Affichage des badges de rôle des utilisateurs
+ * 
+ * @param {Object} user - Objet utilisateur connecté
+ */
+const MessagingSystem = ({ user }) => {
+  // États locaux pour la gestion des données
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState('');
-  const [newConversation, setNewConversation] = useState({
-    destinataire_id: '',
-    contenu: ''
-  });
+  const [conversations, setConversations] = useState([]);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [currentMessages, setCurrentMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filtrer les messages
-  const getUserMessages = () => {
-    return data.messages.filter(msg => msg.expediteur_id === user.id || msg.destinataire_id === user.id);
+  /**
+   * Chargement initial des conversations et utilisateurs disponibles
+   * Exécuté au montage du composant
+   */
+  useEffect(() => {
+    loadConversations();
+    loadAvailableUsers();
+  }, [user]);
+
+  /**
+   * Chargement des messages d'une conversation spécifique
+   * Exécuté quand une conversation est sélectionnée
+   */
+  useEffect(() => {
+    if (selectedConversation) {
+      loadConversationMessages(selectedConversation);
+    }
+  }, [selectedConversation]);
+
+  /**
+   * Charge toutes les conversations de l'utilisateur connecté
+   * Récupère les conversations depuis l'API et les formate
+   */
+  const loadConversations = async () => {
+    try {
+      const response = await getConversations();
+      setConversations(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des conversations:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Grouper par conversation
-  const getConversations = () => {
-    const messages = getUserMessages();
-    const conversations = {};
-    messages.forEach(msg => {
-      const otherUserId = msg.expediteur_id === user.id ? msg.destinataire_id : msg.expediteur_id;
-      if (!conversations[otherUserId]) conversations[otherUserId] = [];
-      conversations[otherUserId].push(msg);
-    });
-    Object.keys(conversations).forEach(userId => {
-      conversations[userId].sort((a, b) => new Date(a.date_envoi) - new Date(b.date_envoi));
-    });
-    return conversations;
+  /**
+   * Charge la liste des utilisateurs avec qui on peut discuter
+   * Les utilisateurs disponibles dépendent du rôle de l'utilisateur connecté
+   */
+  const loadAvailableUsers = async () => {
+    try {
+      const response = await getAvailableUsers();
+      setAvailableUsers(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des utilisateurs:', error);
+    }
   };
 
-  // Envoi d'un message
-  const sendMessage = (destinataireId, contenu) => {
-    const newMsg = {
-      id: Date.now(),
-      expediteur_id: user.id,
-      destinataire_id: destinataireId,
-      contenu,
-      date_envoi: new Date().toISOString()
-    };
-    setData(prev => ({
-      ...prev,
-      messages: [...prev.messages, newMsg]
-    }));
+  /**
+   * Charge les messages d'une conversation spécifique
+   * @param {number} conversationId - ID de la conversation
+   */
+  const loadConversationMessages = async (conversationId) => {
+    try {
+      const response = await getConversationMessages(conversationId);
+      setCurrentMessages(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des messages:', error);
+    }
   };
 
-  // Gestion envoi message
-  const handleSendMessage = (e) => {
+  /**
+   * Envoie un nouveau message dans la conversation sélectionnée
+   * Met à jour automatiquement les conversations et messages
+   * @param {Event} e - Événement du formulaire
+   */
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (selectedConversation && newMessage.trim()) {
-      sendMessage(selectedConversation, newMessage);
-      setNewMessage('');
+      try {
+        await sendMessageApi({
+          destinataire_id: selectedConversation,
+          contenu: newMessage
+        });
+        setNewMessage('');
+        // Rechargement des messages et conversations
+        loadConversationMessages(selectedConversation);
+        loadConversations();
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi du message:', error);
+      }
     }
   };
 
-  // Gestion nouvelle conversation
-  const handleNewConversation = (e) => {
+  /**
+   * Crée une nouvelle conversation avec un utilisateur
+   * @param {Event} e - Événement du formulaire
+   */
+  const handleNewConversation = async (e) => {
     e.preventDefault();
-    if (newConversation.destinataire_id && newConversation.contenu.trim()) {
-      sendMessage(parseInt(newConversation.destinataire_id), newConversation.contenu);
-      setNewConversation({ destinataire_id: '', contenu: '' });
-      setIsModalOpen(false);
+    const formData = new FormData(e.target);
+    const destinataireId = formData.get('destinataire_id');
+    const contenu = formData.get('contenu');
+
+    if (destinataireId && contenu.trim()) {
+      try {
+        await sendMessageApi({
+          destinataire_id: parseInt(destinataireId),
+          contenu: contenu.trim()
+        });
+        setIsModalOpen(false);
+        loadConversations();
+        e.target.reset();
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi du message:', error);
+      }
     }
   };
 
-  const conversations = getConversations();
-  const availableUsers = data.users.filter(u => u.id !== user.id);
+  /**
+   * Formate une date en format français lisible
+   * @param {string} dateString - Date au format ISO
+   * @returns {string} Date formatée
+   */
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Affichage du loader pendant le chargement
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 sm:p-6 h-screen flex flex-col">
+    <div className="p-6 h-screen flex flex-col bg-gray-50">
+      {/* Header avec titre et bouton nouveau message */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold text-title">Messagerie</h2>
-        <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 btn-secondary mt-4 sm:mt-0">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Messagerie</h2>
+          <p className="text-gray-600">Communiquez avec les autres utilisateurs</p>
+        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)} 
+          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors mt-4 sm:mt-0"
+        >
           <Plus size={16} />
           Nouveau message
         </button>
       </div>
-      <div className="flex-1 flex flex-col sm:flex-row gap-4 sm:gap-6 overflow-hidden">
-        <div className="w-full sm:w-1/3 card border-[var(--bleu-principal)]">
-          <div className="bg-[var(--vert-accent)] text-[var(--blanc-pur)] p-4">
-            <h3 className="font-semibold text-title">Conversations</h3>
+
+      {/* Interface principale de messagerie */}
+      <div className="flex-1 flex flex-col sm:flex-row gap-6 overflow-hidden">
+        {/* Liste des conversations - Panel de gauche */}
+        <div className="w-full sm:w-1/3 bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-4">
+            <h3 className="font-semibold text-lg">Conversations</h3>
           </div>
           <div className="divide-y max-h-96 overflow-y-auto">
-            {Object.entries(conversations).map(([userId, messages]) => {
-              const otherUser = data.users.find(u => u.id === parseInt(userId));
-              const lastMessage = messages[messages.length - 1];
-              const isSelected = selectedConversation === parseInt(userId);
-              return (
-                <div
-                  key={userId}
-                  onClick={() => setSelectedConversation(parseInt(userId))}
-                  className={`p-4 cursor-pointer hover:bg-[var(--bleu-clair)] transition-colors ${isSelected ? 'bg-[var(--bleu-clair)]' : ''}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-[var(--bleu-principal)] text-[var(--blanc-pur)] flex items-center justify-center text-sm font-medium">
-                      {otherUser?.prenom[0]}
-                    </div>
-                    <div>
-                      <p className="font-medium text-title">{otherUser?.prenom} {otherUser?.nom}</p>
-                      <p className="text-xs text-[var(--gris-neutre)] truncate">{lastMessage.contenu}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {Object.keys(conversations).length === 0 && (
-              <div className="p-4 text-center text-body">Aucune conversation</div>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 card border-[var(--bleu-principal)] flex flex-col">
-          {selectedConversation ? (
-            <>
-              <div className="bg-[var(--bleu-principal)] text-[var(--blanc-pur)] p-4">
-                <h3 className="font-semibold text-title">
-                  Conversation avec {data.users.find(u => u.id === selectedConversation)?.prenom} {data.users.find(u => u.id === selectedConversation)?.nom}
-                </h3>
+            {conversations.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                Aucune conversation
               </div>
-              <div className="flex-1 p-4 overflow-y-auto max-h-[60vh]">
-                {conversations[selectedConversation]?.map(msg => (
+            ) : (
+              conversations.map((conversation) => {
+                const otherUser = conversation.user;
+                const lastMessage = conversation.last_message;
+                const isSelected = selectedConversation === otherUser.id;
+                
+                return (
                   <div
-                    key={msg.id}
-                    className={`mb-4 flex ${msg.expediteur_id === user.id ? 'justify-end' : 'justify-start'}`}
+                    key={otherUser.id}
+                    onClick={() => setSelectedConversation(otherUser.id)}
+                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+                      isSelected ? 'bg-primary-50 border-r-4 border-primary-600' : ''
+                    }`}
                   >
-                    <div className="flex items-start gap-2 max-w-[70%]">
-                      {msg.expediteur_id !== user.id && (
-                        <div className="w-8 h-8 rounded-full bg-[var(--bleu-principal)] text-[var(--blanc-pur)] flex items-center justify-center text-sm font-medium">
-                          {data.users.find(u => u.id === msg.expediteur_id)?.prenom[0]}
+                    <div className="flex items-center gap-3">
+                      {/* Avatar de l'utilisateur */}
+                      <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-medium">
+                        {otherUser.prenom[0]}{otherUser.nom[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900 truncate">
+                            {otherUser.prenom} {otherUser.nom}
+                          </p>
+                          <RoleBadge role={otherUser.role} />
                         </div>
-                      )}
-                      <div
-                        className={`rounded-lg p-3 text-sm sm:text-base shadow-md ${msg.expediteur_id === user.id ? 'bg-[var(--bleu-principal)] text-[var(--blanc-pur)]' : 'bg-[var(--bleu-clair)] text-[var(--bleu-principal)]'}`}
-                      >
-                        <p>{msg.contenu}</p>
-                        <p className="text-xs mt-1 opacity-70">
-                          {new Date(msg.date_envoi).toLocaleString('fr-FR')}
-                        </p>
+                        {lastMessage && (
+                          <p className="text-sm text-gray-500 truncate">
+                            {lastMessage.contenu}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Zone de messages - Panel de droite */}
+        <div className="flex-1 bg-white rounded-lg shadow-lg overflow-hidden flex flex-col">
+          {selectedConversation ? (
+            <>
+              {/* Header de la conversation */}
+              <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-4">
+                <h3 className="font-semibold text-lg">
+                  {conversations.find(c => c.user.id === selectedConversation)?.user.prenom} {conversations.find(c => c.user.id === selectedConversation)?.user.nom}
+                </h3>
               </div>
+              
+              {/* Liste des messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {currentMessages.map((message) => {
+                  const isOwnMessage = message.expediteur_id === user.id;
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          isOwnMessage
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-gray-100 text-gray-900'
+                        }`}
+                      >
+                        <p className="text-sm">{message.contenu}</p>
+                        <p className={`text-xs mt-1 ${
+                          isOwnMessage ? 'text-primary-100' : 'text-gray-500'
+                        }`}>
+                          {formatDate(message.date_envoi)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Formulaire d'envoi de message */}
               <div className="p-4 border-t">
-                <div className="flex gap-2">
+                <form onSubmit={handleSendMessage} className="flex gap-2">
                   <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    className="input flex-1"
-                    placeholder="Écrivez un message..."
-                    aria-label="Écrire un message"
+                    placeholder="Tapez votre message..."
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
-                  <button onClick={handleSendMessage} className="btn-primary">
-                    Envoyer
+                  <button
+                    type="submit"
+                    disabled={!newMessage.trim()}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Send size={16} />
                   </button>
-                </div>
+                </form>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-body">
-              Sélectionnez une conversation
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <MessageCircle size={48} className="mx-auto mb-4 text-gray-300" />
+                <p>Sélectionnez une conversation pour commencer</p>
+              </div>
             </div>
           )}
         </div>
       </div>
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Nouveau message"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Destinataire</label>
-            <select
-              value={newConversation.destinataire_id}
-              onChange={(e) => setNewConversation({...newConversation, destinataire_id: e.target.value})}
-              className="input"
-              required
-              aria-label="Sélectionner un destinataire"
-            >
-              <option value="">Sélectionner un destinataire</option>
-              {availableUsers.map(u => (
-                <option key={u.id} value={u.id}>{u.prenom} {u.nom} ({u.role})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Message</label>
-            <textarea
-              value={newConversation.contenu}
-              onChange={(e) => setNewConversation({...newConversation, contenu: e.target.value})}
-              className="input h-32"
-              required
-              aria-label="Contenu du message"
-            />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded hover:bg-[var(--bleu-clair)] text-body text-sm sm:text-base">
-              Annuler
-            </button>
-            <button onClick={handleNewConversation} className="btn-primary">
-              Envoyer
-            </button>
-          </div>
+
+      {/* Modal pour nouvelle conversation */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Nouveau message</h3>
+          <form onSubmit={handleNewConversation} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Destinataire
+              </label>
+              <select
+                name="destinataire_id"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Sélectionnez un destinataire</option>
+                {availableUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.prenom} {user.nom} - <RoleBadge role={user.role} />
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Message
+              </label>
+              <textarea
+                name="contenu"
+                required
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Tapez votre message..."
+              ></textarea>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                Envoyer
+              </button>
+            </div>
+          </form>
         </div>
       </Modal>
     </div>

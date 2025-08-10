@@ -1,194 +1,285 @@
-import React, { useState } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, BookOpen, Edit, Trash2, TrendingUp } from 'lucide-react';
 import Modal from './Modal';
+import RoleBadge from './RoleBadge';
+import { getGrades, createGrade, updateGrade, deleteGrade, getUsers } from '../services/api';
 
-const GradesManagement = ({ data, setData, user }) => {
+const GradesManagement = ({ user }) => {
+  const [grades, setGrades] = useState([]);
+  const [students, setStudents] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGrade, setEditingGrade] = useState(null);
-  const [formData, setFormData] = useState({
-    eleve_id: '', matiere: '', note: '', commentaire: ''
-  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Filtrer les notes selon rôle
-  const getNotes = () => {
-    if (user.role === 'admin') return data.notes;
-    if (user.role === 'professeur') return data.notes.filter(n => n.professeur_id === user.id);
-    if (user.role === 'eleve') return data.notes.filter(n => n.eleve_id === user.id);
-    if (user.role === 'parent') {
-      const enfant = data.users.find(u => u.parent_id === user.id);
-      return enfant ? data.notes.filter(n => n.eleve_id === enfant.id) : [];
+  useEffect(() => {
+    loadGrades();
+    if (user.role === 'admin' || user.role === 'professeur') {
+      loadStudents();
     }
-    return [];
+  }, []);
+
+  const loadGrades = async () => {
+    try {
+      setLoading(true);
+      const response = await getGrades();
+      setGrades(response.data);
+    } catch (error) {
+      setError('Erreur lors du chargement des notes');
+      console.error('Erreur:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Ouvre le modal
-  const openModal = (grade = null) => {
+  const loadStudents = async () => {
+    try {
+      const response = await getUsers();
+      // Filtrer seulement les élèves
+      const studentsData = response.data.filter(u => u.role === 'eleve');
+      setStudents(studentsData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des élèves:', error);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const gradeData = {
+      note: parseFloat(formData.get('note')),
+      matiere: formData.get('matiere'),
+      commentaire: formData.get('commentaire'),
+      eleve_id: parseInt(formData.get('eleve_id'))
+    };
+
+    try {
+      if (editingGrade) {
+        await updateGrade(editingGrade.id, gradeData);
+      } else {
+        await createGrade(gradeData);
+      }
+      setIsModalOpen(false);
+      setEditingGrade(null);
+      loadGrades();
+      e.target.reset();
+    } catch (error) {
+      setError('Erreur lors de la sauvegarde de la note');
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleEdit = (grade) => {
     setEditingGrade(grade);
-    setFormData(grade || { eleve_id: '', matiere: '', note: '', commentaire: '' });
     setIsModalOpen(true);
   };
 
-  // Gestion du formulaire
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setData(prev => ({
-      ...prev,
-      notes: editingGrade
-        ? prev.notes.map(grade => grade.id === editingGrade.id ? { ...formData, id: grade.id } : grade)
-        : [...prev.notes, { ...formData, id: Date.now(), professeur_id: user.id, note: parseFloat(formData.note), date: new Date().toISOString().split('T')[0] }]
-    }));
-    setIsModalOpen(false);
-  };
-
-  // Suppression d'une note
-  const handleDelete = (gradeId) => {
-    if (window.confirm('Supprimer cette note ?')) {
-      setData(prev => ({
-        ...prev,
-        notes: prev.notes.filter(grade => grade.id !== gradeId)
-      }));
+  const handleDelete = async (gradeId) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette note ?')) {
+      try {
+        await deleteGrade(gradeId);
+        loadGrades();
+      } catch (error) {
+        setError('Erreur lors de la suppression de la note');
+        console.error('Erreur:', error);
+      }
     }
   };
 
-  const canEdit = user.role === 'admin' || user.role === 'professeur';
-  const notes = getNotes();
+  const getGradeColor = (note) => {
+    if (note >= 16) return 'text-green-600 bg-green-100';
+    if (note >= 12) return 'text-blue-600 bg-blue-100';
+    if (note >= 8) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
+  };
 
-  // Regrouper par élève
-  const notesByStudent = notes.reduce((acc, note) => {
-    const student = data.users.find(u => u.id === note.eleve_id);
-    if (!student) return acc;
-    if (!acc[student.id]) acc[student.id] = { student, notes: [] };
-    acc[student.id].notes.push(note);
-    return acc;
-  }, {});
+  const canEdit = user.role === 'admin' || user.role === 'professeur';
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold text-title">
-          {user.role === 'parent' ? 'Notes de votre enfant' : user.role === 'eleve' ? 'Mes notes' : 'Gestion des notes'}
-        </h2>
-        {canEdit && (
-          <button onClick={() => openModal()} className="flex items-center gap-2 btn-primary mt-4 sm:mt-0">
-            <Plus size={16} />
-            Nouvelle note
-          </button>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Notes</h2>
+            <p className="text-gray-600">Gestion des notes du Centre Scolaire</p>
+          </div>
+          {canEdit && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors mt-4 sm:mt-0"
+            >
+              <Plus size={16} />
+              Nouvelle note
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {grades.map((grade) => (
+            <div key={grade.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-green-600 to-green-700 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">{grade.matiere}</h3>
+                  <div className={`px-3 py-1 rounded-full text-white font-bold ${getGradeColor(grade.note).replace('text-', '').replace('bg-', 'bg-')}`}>
+                    {grade.note}/20
+                  </div>
+                </div>
+              </div>
+              <div className="p-4">
+                {grade.commentaire && (
+                  <p className="text-gray-600 text-sm mb-4">{grade.commentaire}</p>
+                )}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-500">
+                    <span className="font-medium">Élève:</span> {grade.eleve?.prenom} {grade.eleve?.nom}
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(grade)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(grade.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {grade.professeur && (
+                  <div className="mt-2 text-sm text-gray-500">
+                    <span className="font-medium">Professeur:</span> {grade.professeur.prenom} {grade.professeur.nom}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {grades.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune note</h3>
+            <p className="text-gray-500">
+              {canEdit 
+                ? 'Créez la première note en cliquant sur "Nouvelle note"'
+                : 'Aucune note n\'a été créée pour le moment'
+              }
+            </p>
+          </div>
         )}
       </div>
-      <div className="space-y-6">
-        {Object.values(notesByStudent).map(({ student, notes }) => {
-          const moyenne = notes.length > 0 ? (notes.reduce((sum, note) => sum + note.note, 0) / notes.length).toFixed(2) : 0;
-          return (
-            <div key={student.id} className="card border-[var(--bleu-principal)]">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-title">{student.prenom} {student.nom}</h3>
-                <div className="text-lg font-semibold text-[var(--bleu-principal)] mt-2 sm:mt-0">Moyenne: {moyenne}/20</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full responsive-table">
-                  <thead className="bg-[var(--bleu-clair)]">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-title">Matière</th>
-                      <th className="px-4 py-2 text-left text-title">Note</th>
-                      <th className="px-4 py-2 text-left text-title">Date</th>
-                      {canEdit && <th className="px-4 py-2 text-left text-title">Actions</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {notes.map(note => (
-                      <tr key={note.id} className="border-t">
-                        <td data-label="Matière" className="px-4 py-2 text-body">{note.matiere}</td>
-                        <td data-label="Note" className="px-4 py-2">
-                          <span className={`px-2 py-1 rounded text-sm font-medium ${
-                            note.note >= 16 ? 'bg-[var(--vert-clair)] text-[var(--vert-accent)]' :
-                            note.note >= 12 ? 'bg-[var(--bleu-clair)] text-[var(--bleu-principal)]' :
-                            note.note >= 8 ? 'bg-[var(--orange-clair)] text-[var(--orange-secondaire)]' :
-                            'bg-[var(--rouge-erreur)] text-[var(--blanc-pur)]'
-                          }`}>
-                            {note.note}/20
-                          </span>
-                        </td>
-                        <td data-label="Date" className="px-4 py-2 text-body">{new Date(note.date).toLocaleDateString('fr-FR')}</td>
-                        {canEdit && (
-                          <td data-label="Actions" className="px-4 py-2">
-                            <div className="flex gap-2">
-                              <button onClick={() => openModal(note)} className="text-[var(--bleu-principal)] hover:text-opacity-80">
-                                <Edit size={16} />
-                              </button>
-                              <button onClick={() => handleDelete(note.id)} className="text-[var(--rouge-erreur)] hover:text-opacity-80">
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
-        {Object.keys(notesByStudent).length === 0 && <div className="text-center py-8 text-body">Aucune note</div>}
-      </div>
-      {canEdit && (
-        <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          title={editingGrade ? 'Modifier note' : 'Nouvelle note'}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-body mb-1">Élève</label>
-              <select
-                value={formData.eleve_id}
-                onChange={(e) => setFormData({...formData, eleve_id: parseInt(e.target.value)})}
-                className="input"
-                required
-              >
-                <option value="">Sélectionner un élève</option>
-                {data.users
-                  .filter(u => u.role === 'eleve' && (user.role === 'admin' || u.classe_id === user.classe_id))
-                  .map(student => (
-                    <option key={student.id} value={student.id}>{student.prenom} {student.nom}</option>
+
+      {/* Modal pour créer/modifier une note */}
+      <Modal isOpen={isModalOpen} onClose={() => {
+        setIsModalOpen(false);
+        setEditingGrade(null);
+      }}>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingGrade ? 'Modifier la note' : 'Nouvelle note'}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {user.role === 'admin' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Élève
+                </label>
+                <select
+                  name="eleve_id"
+                  defaultValue={editingGrade?.eleve_id}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Sélectionnez un élève</option>
+                  {students.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.prenom} {student.nom}
+                    </option>
                   ))}
-              </select>
-            </div>
+                </select>
+              </div>
+            )}
             <div>
-              <label className="block text-sm font-medium text-body mb-1">Matière</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Matière
+              </label>
               <input
                 type="text"
-                value={formData.matiere}
-                onChange={(e) => setFormData({...formData, matiere: e.target.value})}
-                className="input"
-                placeholder="ex: Mathématiques"
+                name="matiere"
+                defaultValue={editingGrade?.matiere}
                 required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Nom de la matière"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-body mb-1">Note (sur 20)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Note (/20)
+              </label>
               <input
                 type="number"
+                name="note"
                 min="0"
                 max="20"
                 step="0.5"
-                value={formData.note}
-                onChange={(e) => setFormData({...formData, note: e.target.value})}
-                className="input"
+                defaultValue={editingGrade?.note}
                 required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Note sur 20"
               />
             </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded hover:bg-[var(--bleu-clair)] text-body text-sm sm:text-base">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Commentaire (optionnel)
+              </label>
+              <textarea
+                name="commentaire"
+                defaultValue={editingGrade?.commentaire}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Commentaire sur la note"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingGrade(null);
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
                 Annuler
               </button>
-              <button onClick={handleSubmit} className="btn-primary">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
                 {editingGrade ? 'Modifier' : 'Créer'}
               </button>
             </div>
-          </div>
-        </Modal>
-      )}
+          </form>
+        </div>
+      </Modal>
     </div>
   );
 };
