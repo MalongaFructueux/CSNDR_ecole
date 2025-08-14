@@ -67,11 +67,40 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [UserController::class, 'store']);
     
     /**
+     * Modification d'un utilisateur existant
+     * PUT /api/users/{id}
+     * Paramètres : nom, prenom, email, mot_de_passe (optionnel), role, classe_id, parent_id
+     * Restriction : Admin uniquement
+     */
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    
+    /**
      * Suppression d'un utilisateur
      * DELETE /api/users/{id}
      * Restriction : Admin uniquement
      */
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+    /**
+     * Recherche d'utilisateurs par nom/prénom/email
+     * GET /api/users/search?query=terme
+     * Retourne : Liste des utilisateurs correspondants
+     */
+    Route::get('/users/search', [UserController::class, 'searchUsers']);
+
+    /**
+     * Récupération des élèves d'un professeur
+     * GET /api/users/teacher/{teacherId}/students
+     * Restriction : Professeur concerné ou Admin
+     */
+    Route::get('/users/teacher/{teacherId}/students', [UserController::class, 'getStudentsByTeacher']);
+
+    /**
+     * Récupération des enfants d'un parent
+     * GET /api/users/parent/{parentId}/children
+     * Restriction : Parent concerné ou Admin
+     */
+    Route::get('/users/parent/{parentId}/children', [UserController::class, 'getChildrenByParent']);
 
     // ========================================================================
     // GESTION DES CLASSES
@@ -99,7 +128,22 @@ Route::middleware('auth:sanctum')->group(function () {
         $classe = Classe::create(['nom' => $validated['nom']]);
         return response()->json(['message' => 'Classe créée', 'classe' => $classe], 201);
     });
-    
+
+    /**
+     * Modification d'une classe existante
+     * PUT /api/classes/{id}
+     * Paramètres : nom
+     * Restriction : Admin uniquement
+     */
+    Route::put('/classes/{id}', function (Request $request, $id) {
+        $classe = Classe::findOrFail($id);
+        $validated = $request->validate([
+            'nom' => ['required','string','max:255'],
+        ]);
+        $classe->update(['nom' => $validated['nom']]);
+        return response()->json(['message' => 'Classe modifiée', 'classe' => $classe]);
+    });
+
     /**
      * Suppression d'une classe
      * DELETE /api/classes/{id}
@@ -116,76 +160,70 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================================
     
     /**
-     * Récupération de tous les messages de l'utilisateur connecté
+     * Récupération des messages
      * GET /api/messages
-     * Retourne : Messages envoyés et reçus
+     * Retourne : Messages selon le rôle de l'utilisateur
      */
     Route::get('/messages', [MessageController::class, 'index']);
     
     /**
-     * Récupération des conversations de l'utilisateur connecté
+     * Récupération des conversations
      * GET /api/messages/conversations
-     * Retourne : Conversations groupées par utilisateur
+     * Retourne : Conversations de l'utilisateur connecté
      */
     Route::get('/messages/conversations', [MessageController::class, 'conversations']);
-    
-    /**
-     * Récupération des utilisateurs disponibles pour la discussion
-     * GET /api/messages/available-users
-     * Retourne : Liste des utilisateurs avec qui on peut discuter
-     */
+
+    // Récupération des utilisateurs disponibles pour la discussion
     Route::get('/messages/available-users', [MessageController::class, 'getAvailableUsers']);
     
     /**
-     * Envoi d'un nouveau message
+     * Envoi d'un message
      * POST /api/messages
      * Paramètres : destinataire_id, contenu
-     * Restriction : Admin, Professeur, Parent uniquement
+     * Retourne : Message créé
      */
     Route::post('/messages', [MessageController::class, 'store']);
-    
+
     /**
-     * Récupération des messages d'une conversation spécifique
-     * GET /api/messages/{id}
-     * Paramètres : id (ID de l'utilisateur avec qui on converse)
-     * Retourne : Messages de la conversation
+     * Récupération des messages d'une conversation
+     * GET /api/messages/conversations/{id}
+     * Retourne : Messages d'une conversation spécifique
      */
-    Route::get('/messages/{id}', [MessageController::class, 'show']);
+    Route::get('/messages/conversations/{id}', [MessageController::class, 'show']);
+
+    /**
+     * Marque les messages d'une conversation comme lus
+     * POST /api/messages/read/{conversationId}
+     */
+    Route::post('/messages/read/{conversationId}', [MessageController::class, 'markAsRead']);
 
     // ========================================================================
     // GESTION DES ÉVÉNEMENTS
     // ========================================================================
     
     /**
-     * Récupération de tous les événements
+     * Récupération des événements
      * GET /api/events
-     * Retourne : Liste des événements avec les informations des auteurs
+     * Retourne : Tous les événements (visibles par tous)
      */
     Route::get('/events', [EventController::class, 'index']);
     
     /**
-     * Création d'un nouvel événement
+     * Création d'un événement
      * POST /api/events
-     * Paramètres : titre, description, date
+     * Paramètres : titre, description, date_debut, date_fin
      * Restriction : Admin uniquement
      */
     Route::post('/events', [EventController::class, 'store']);
-    
-    /**
-     * Récupération d'un événement spécifique
-     * GET /api/events/{id}
-     * Retourne : Détails de l'événement
-     */
-    Route::get('/events/{id}', [EventController::class, 'show']);
-    
+
     /**
      * Modification d'un événement
      * PUT /api/events/{id}
-     * Paramètres : titre, description, date
+     * Paramètres : titre, description, date_debut, date_fin
      * Restriction : Admin uniquement
      */
     Route::put('/events/{id}', [EventController::class, 'update']);
-    
+
     /**
      * Suppression d'un événement
      * DELETE /api/events/{id}
@@ -198,35 +236,35 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================================
     
     /**
-     * Récupération des devoirs selon le rôle
+     * Récupération des devoirs
      * GET /api/homework
-     * Retourne : Devoirs filtrés selon le rôle de l'utilisateur
+     * Retourne : Devoirs selon le rôle de l'utilisateur
      */
     Route::get('/homework', [HomeworkController::class, 'index']);
     
     /**
-     * Création d'un nouveau devoir
+     * Création d'un devoir
      * POST /api/homework
-     * Paramètres : titre, description, date_limite, classe_id
+     * Paramètres : titre, description, date_limite, classe_id, fichier (optionnel)
      * Restriction : Admin et Professeur uniquement
      */
     Route::post('/homework', [HomeworkController::class, 'store']);
-    
+
     /**
      * Récupération d'un devoir spécifique
      * GET /api/homework/{id}
-     * Retourne : Détails du devoir avec les relations
+     * Retourne : Détails du devoir
      */
     Route::get('/homework/{id}', [HomeworkController::class, 'show']);
-    
+
     /**
      * Modification d'un devoir
      * PUT /api/homework/{id}
-     * Paramètres : titre, description, date_limite, classe_id
+     * Paramètres : titre, description, date_limite, classe_id, fichier (optionnel)
      * Restriction : Admin et Professeur créateur uniquement
      */
     Route::put('/homework/{id}', [HomeworkController::class, 'update']);
-    
+
     /**
      * Suppression d'un devoir
      * DELETE /api/homework/{id}
@@ -234,40 +272,47 @@ Route::middleware('auth:sanctum')->group(function () {
      */
     Route::delete('/homework/{id}', [HomeworkController::class, 'destroy']);
 
+    /**
+     * Téléchargement du fichier d'un devoir
+     * GET /api/homework/{id}/download
+     * Retourne : Fichier du devoir
+     */
+    Route::get('/homework/{id}/download', [HomeworkController::class, 'downloadFile']);
+    
     // ========================================================================
     // GESTION DES NOTES
     // ========================================================================
     
     /**
-     * Récupération des notes selon le rôle
+     * Récupération des notes
      * GET /api/grades
-     * Retourne : Notes filtrées selon le rôle de l'utilisateur
+     * Retourne : Notes selon le rôle de l'utilisateur
      */
     Route::get('/grades', [GradeController::class, 'index']);
     
     /**
-     * Création d'une nouvelle note
+     * Création d'une note
      * POST /api/grades
-     * Paramètres : note, matiere, commentaire, eleve_id
+     * Paramètres : eleve_id, matiere, note, coefficient, commentaire
      * Restriction : Admin et Professeur uniquement
      */
     Route::post('/grades', [GradeController::class, 'store']);
-    
+
     /**
      * Récupération d'une note spécifique
      * GET /api/grades/{id}
-     * Retourne : Détails de la note avec les relations
+     * Retourne : Détails de la note
      */
     Route::get('/grades/{id}', [GradeController::class, 'show']);
-    
+
     /**
      * Modification d'une note
      * PUT /api/grades/{id}
-     * Paramètres : note, matiere, commentaire, eleve_id
+     * Paramètres : eleve_id, matiere, note, coefficient, commentaire
      * Restriction : Admin et Professeur créateur uniquement
      */
     Route::put('/grades/{id}', [GradeController::class, 'update']);
-    
+
     /**
      * Suppression d'une note
      * DELETE /api/grades/{id}

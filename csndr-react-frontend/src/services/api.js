@@ -15,7 +15,7 @@ const api = axios.create({
     
     // Headers par défaut
     headers: {
-        'Content-Type': 'application/json',
+        // Ne pas forcer le Content-Type ici pour permettre à FormData de définir multipart/form-data automatiquement
         'Accept': 'application/json',
     },
     
@@ -34,6 +34,15 @@ api.interceptors.request.use(
         const token = localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+        }
+
+        // S'assurer que FormData est correctement envoyé en multipart/form-data
+        // Axios définira automatiquement le bon Content-Type (avec boundary) si on ne le force pas
+        if (config.data instanceof FormData) {
+            delete config.headers['Content-Type'];
+        } else if (config.method && config.method.toLowerCase() !== 'get') {
+            // Pour les payloads JSON (non-FormData), définir le Content-Type JSON
+            config.headers['Content-Type'] = 'application/json';
         }
         return config;
     },
@@ -98,6 +107,13 @@ export const logout = () => api.post('/auth/logout');
  * @returns {Promise} - Liste des utilisateurs
  */
 export const getUsers = () => api.get('/users');
+
+/**
+ * Recherche des utilisateurs par nom ou email
+ * @param {string} query - Terme de recherche
+ * @returns {Promise} - Liste des utilisateurs correspondants
+ */
+export const searchUsers = (query) => api.get(`/users/search?query=${query}`);
 
 /**
  * Création d'un nouvel utilisateur
@@ -187,7 +203,14 @@ export const sendMessage = (messageData) => api.post('/messages', messageData);
  * @param {number} id - ID de l'utilisateur avec qui on converse
  * @returns {Promise} - Messages de la conversation
  */
-export const getConversationMessages = (id) => api.get(`/messages/${id}`);
+export const getConversationMessages = (id) => api.get(`/messages/conversations/${id}`);
+
+/**
+ * Marque les messages d'une conversation comme lus
+ * @param {number} conversationId - ID de l'autre utilisateur dans la conversation
+ * @returns {Promise} - Confirmation
+ */
+export const markMessagesAsRead = (conversationId) => api.post(`/messages/read/${conversationId}`);
 
 // ============================================================================
 // ROUTES DE GESTION DES ÉVÉNEMENTS

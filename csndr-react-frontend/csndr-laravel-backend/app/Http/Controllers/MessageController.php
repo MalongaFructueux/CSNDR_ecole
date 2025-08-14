@@ -92,10 +92,17 @@ class MessageController extends Controller
         foreach ($conversations as $otherUserId => $conversationMessages) {
             $otherUser = User::find($otherUserId);
             if ($otherUser) {
+                // Compter les messages non lus dans cette conversation
+                $unreadCount = collect($conversationMessages)
+                    ->where('destinataire_id', $user->id)
+                    ->where('lu', false)
+                    ->count();
+
                 $formattedConversations[] = [
                     'user' => $otherUser,
                     'messages' => $conversationMessages,
-                    'last_message' => $conversationMessages[0] // Premier message (le plus récent)
+                    'last_message' => $conversationMessages[0], // Premier message (le plus récent)
+                    'unread_count' => $unreadCount
                 ];
             }
         }
@@ -112,31 +119,90 @@ class MessageController extends Controller
      */
     public function store(Request $request)
     {
-        // Validation des données reçues
-        $request->validate([
-            'destinataire_id' => 'required|exists:users,id',
-            'contenu' => 'required|string|max:1000'
-        ]);
+        try {
+            // Validation des données reçues
+            $validated = $request->validate([
+                'destinataire_id' => 'required|integer|exists:users,id',
+                'contenu' => 'required|string|max:1000'
+            ], [
+                'destinataire_id.required' => 'L\'ID du destinataire est requis',
+                'destinataire_id.exists' => 'Le destinataire sélectionné n\'existe pas',
+                'contenu.required' => 'Le contenu du message est requis',
+                'contenu.max' => 'Le message ne doit pas dépasser 1000 caractères'
+            ]);
 
-        $user = Auth::user();
-        
-        // Vérification des permissions selon le rôle
-        if (!in_array($user->role, ['admin', 'professeur', 'parent'])) {
-            return response()->json(['message' => 'Accès refusé'], 403);
+            $user = Auth::user();
+            
+            // Vérification des permissions selon le rôle
+            if (!in_array($user->role, ['admin', 'professeur', 'parent'])) {
+                \Log::warning('Tentative d\'envoi de message non autorisée', [
+                    'user_id' => $user->id,
+                    'role' => $user->role
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Seuls les administrateurs, professeurs et parents peuvent envoyer des messages.'
+                ], 403);
+            }
+
+            // Vérifier que l'utilisateur ne s'envoie pas un message à lui-même
+            if ($user->id == $validated['destinataire_id']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas vous envoyer un message à vous-même.'
+                ], 422);
+            }
+
+            // Création du nouveau message avec une transaction pour assurer l'intégrité des données
+            $message = \DB::transaction(function () use ($user, $validated) {
+                $message = Message::create([
+                    'expediteur_id' => $user->id,
+                    'destinataire_id' => $validated['destinataire_id'],
+                    'contenu' => $validated['contenu'],
+                    'date_envoi' => now(),
+                ]);
+
+                // Chargement des relations pour la réponse
+                $message->load(['expediteur', 'destinataire']);
+                
+                // Journalisation de l'action
+                \Log::info('Nouveau message envoyé', [
+                    'message_id' => $message->id,
+                    'expediteur_id' => $user->id,
+                    'destinataire_id' => $validated['destinataire_id']
+                ]);
+                
+                return $message;
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Message envoyé avec succès',
+                'data' => $message
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Erreur de validation lors de l\'envoi du message', [
+                'errors' => $e->errors(),
+                'user_id' => Auth::id()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de l\'envoi du message: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de l\'envoi du message.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne du serveur'
+            ], 500);
         }
-
-        // Création du nouveau message
-        $message = Message::create([
-            'expediteur_id' => $user->id,
-            'destinataire_id' => $request->destinataire_id,
-            'contenu' => $request->contenu,
-            'date_envoi' => now()
-        ]);
-
-        // Chargement des relations pour la réponse
-        $message->load(['expediteur', 'destinataire']);
-
-        return response()->json($message, 201);
     }
 
     /**
@@ -171,7 +237,7 @@ class MessageController extends Controller
      * 
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getAvailableUsers()
+        public function getAvailableUsers()
     {
         $user = Auth::user();
         
@@ -205,5 +271,23 @@ class MessageController extends Controller
         $users = $query->where('id', '!=', $user->id)->get();
 
         return response()->json($users);
+    }
+
+    /**
+     * Marque les messages d'une conversation comme lus
+     * 
+     * @param int $conversationId - ID de l'autre utilisateur dans la conversation
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function markAsRead($conversationId)
+    {
+        $user = Auth::user();
+
+        Message::where('expediteur_id', $conversationId)
+            ->where('destinataire_id', $user->id)
+            ->where('lu', false)
+            ->update(['lu' => true]);
+
+        return response()->json(['success' => true, 'message' => 'Messages marqués comme lus.']);
     }
 }

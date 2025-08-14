@@ -46,12 +46,27 @@ const GradesManagement = ({ user }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const eleveIdRaw = formData.get('eleve_id');
     const gradeData = {
       note: parseFloat(formData.get('note')),
       matiere: formData.get('matiere'),
       commentaire: formData.get('commentaire'),
-      eleve_id: parseInt(formData.get('eleve_id'))
+      eleve_id: eleveIdRaw ? parseInt(eleveIdRaw, 10) : null,
     };
+
+    // Validation côté client
+    if (!gradeData.matiere?.trim()) {
+      setError('La matière est requise.');
+      return;
+    }
+    if (isNaN(gradeData.note) || gradeData.note < 0 || gradeData.note > 20) {
+      setError('La note doit être un nombre entre 0 et 20.');
+      return;
+    }
+    if (!gradeData.eleve_id) {
+      setError("Veuillez sélectionner un élève.");
+      return;
+    }
 
     try {
       if (editingGrade) {
@@ -64,7 +79,17 @@ const GradesManagement = ({ user }) => {
       loadGrades();
       e.target.reset();
     } catch (error) {
-      setError('Erreur lors de la sauvegarde de la note');
+      // Afficher des erreurs plus explicites
+      const status = error.response?.status;
+      if (status === 422 && error.response?.data?.errors) {
+        const errs = error.response.data.errors;
+        const messages = Object.values(errs).flat();
+        setError(`Erreurs de validation :\n• ${messages.join('\n• ')}`);
+      } else if (error.response?.data?.message) {
+        setError(`Erreur: ${error.response.data.message}`);
+      } else {
+        setError('Erreur lors de la sauvegarde de la note');
+      }
       console.error('Erreur:', error);
     }
   };
@@ -198,7 +223,7 @@ const GradesManagement = ({ user }) => {
             {editingGrade ? 'Modifier la note' : 'Nouvelle note'}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {user.role === 'admin' && (
+            {(user.role === 'admin' || user.role === 'professeur') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Élève

@@ -70,7 +70,7 @@ const Navigation = ({ user, onLogout }) => {
   };
 
   return (
-    <nav className="bg-gradient-to-r from-primary-600 to-primary-800 text-white p-4 shadow-lg sticky top-0 z-40">
+    <nav className="header-hero text-white p-4 shadow-lg sticky top-0 z-40">
       {/* Header principal avec logo et informations de l'école */}
       <div className="container mx-auto flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div className="flex items-center gap-3">

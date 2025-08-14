@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Edit, Trash2, Calendar } from 'lucide-react';
+import { Plus, BookOpen, Edit, Trash2, Calendar, Download, Loader2 } from 'lucide-react';
 import Modal from './Modal';
 import RoleBadge from './RoleBadge';
 import { getHomework, createHomework, updateHomework, deleteHomework, getClasses } from '../services/api';
+import api from '../services/api';
 
 const HomeworkManagement = ({ user }) => {
   const [homeworks, setHomeworks] = useState([]);
@@ -11,6 +12,8 @@ const HomeworkManagement = ({ user }) => {
   const [editingHomework, setEditingHomework] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [downloadingIds, setDownloadingIds] = useState({});
+  const [success, setSuccess] = useState(null);
 
   useEffect(() => {
     loadHomeworks();
@@ -44,12 +47,29 @@ const HomeworkManagement = ({ user }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const homeworkData = {
+    
+    // Récupérer le fichier uploadé
+    const fichier = formData.get('fichier');
+    
+    const homeworkData = new FormData();
+    homeworkData.append('titre', formData.get('titre'));
+    homeworkData.append('description', formData.get('description'));
+    homeworkData.append('date_limite', formData.get('date_limite'));
+    homeworkData.append('classe_id', formData.get('classe_id'));
+    
+    // Debug: Afficher les données envoyées
+    console.log('Données du devoir:', {
       titre: formData.get('titre'),
       description: formData.get('description'),
       date_limite: formData.get('date_limite'),
-      classe_id: parseInt(formData.get('classe_id'))
-    };
+      classe_id: formData.get('classe_id'),
+      fichier: fichier ? `${fichier.name} (${fichier.size} bytes)` : 'Aucun fichier'
+    });
+    
+    // Ajouter le fichier s'il existe
+    if (fichier && fichier.size > 0) {
+      homeworkData.append('fichier', fichier);
+    }
 
     try {
       if (editingHomework) {
@@ -62,8 +82,36 @@ const HomeworkManagement = ({ user }) => {
       loadHomeworks();
       e.target.reset();
     } catch (error) {
-      setError('Erreur lors de la sauvegarde du devoir');
-      console.error('Erreur:', error);
+      console.error('Erreur complète:', error);
+      console.error('Réponse du serveur:', error.response?.data);
+      
+      // Gestion spécifique des erreurs de validation (422)
+      if (error.response?.status === 422) {
+        const serverResponse = error.response.data;
+        
+        if (serverResponse.errors) {
+          // Afficher les erreurs de validation spécifiques
+          const errorMessages = [];
+          
+          Object.entries(serverResponse.errors).forEach(([field, messages]) => {
+            if (Array.isArray(messages)) {
+              errorMessages.push(...messages);
+            } else {
+              errorMessages.push(messages);
+            }
+          });
+          
+          setError(`Erreurs de validation :\n• ${errorMessages.join('\n• ')}`);
+        } else if (serverResponse.message) {
+          setError(`Erreur de validation : ${serverResponse.message}`);
+        } else {
+          setError('Erreur de validation. Vérifiez que tous les champs sont correctement remplis.');
+        }
+      } else if (error.response?.status === 403) {
+        setError('Accès refusé. Vous n\'avez pas les permissions pour créer un devoir.');
+      } else {
+        setError('Erreur lors de la sauvegarde du devoir. Veuillez réessayer.');
+      }
     }
   };
 
@@ -81,6 +129,84 @@ const HomeworkManagement = ({ user }) => {
         setError('Erreur lors de la suppression du devoir');
         console.error('Erreur:', error);
       }
+    }
+  };
+
+  // Téléchargement authentifié du fichier joint d'un devoir
+  const handleDownload = async (homework) => {
+    try {
+      setDownloadingIds((prev) => ({ ...prev, [homework.id]: true }));
+      // Téléchargement avec retries en cas d'erreurs réseau temporaires
+      const maxRetries = 2;
+      let attempt = 0;
+      let response;
+      while (true) {
+        try {
+          response = await api.get(`/homework/${homework.id}/download`, {
+            responseType: 'blob',
+          });
+          break; // succès
+        } catch (err) {
+          const status = err.response?.status;
+          const isNetwork = !err.response || status === 0;
+          const isTransient = isNetwork || [502, 503, 504].includes(status);
+          if (attempt < maxRetries && isTransient) {
+            await new Promise((res) => setTimeout(res, 800 * (attempt + 1)));
+            attempt += 1;
+            continue;
+          }
+          throw err; // relancer si non transitoire ou plus de retries
+        }
+      }
+
+      // Récupérer le nom de fichier depuis les headers si disponible
+      const contentDisposition = response.headers?.['content-disposition'] || response.headers?.get?.('content-disposition');
+      let filename = homework.nom_fichier_original || 'fichier';
+      if (contentDisposition) {
+        const match = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i.exec(contentDisposition);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+          try { filename = decodeURIComponent(filename); } catch (_) {}
+        }
+      }
+
+      const mimeType = response.headers?.['content-type'] || 'application/octet-stream';
+      const blob = new Blob([response.data], { type: mimeType });
+
+      // Support IE/Edge legacy
+      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+        window.navigator.msSaveOrOpenBlob(blob, filename);
+        setSuccess(`Téléchargement démarré: ${filename}`);
+        setTimeout(() => setSuccess(null), 4000);
+        return;
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setSuccess(`Téléchargement démarré: ${filename}`);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (error) {
+      console.error('Erreur lors du téléchargement du fichier:', error);
+      const status = error.response?.status;
+      if (status === 404) {
+        setError('Fichier non trouvé. Il a peut-être été supprimé.');
+      } else if (status === 403) {
+        setError("Accès refusé au téléchargement de ce fichier.");
+      } else {
+        setError("Impossible de télécharger le fichier du devoir. Vérifiez votre connexion et réessayez.");
+      }
+    } finally {
+      setDownloadingIds((prev) => {
+        const copy = { ...prev };
+        delete copy[homework.id];
+        return copy;
+      });
     }
   };
 
@@ -128,6 +254,11 @@ const HomeworkManagement = ({ user }) => {
             {error}
           </div>
         )}
+        {success && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
+            {success}
+          </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {homeworks.map((homework) => (
@@ -167,6 +298,31 @@ const HomeworkManagement = ({ user }) => {
                 {homework.professeur && (
                   <div className="mt-2 text-sm text-gray-500">
                     <span className="font-medium">Professeur:</span> {homework.professeur.prenom} {homework.professeur.nom}
+                  </div>
+                )}
+                {homework.fichier_attachment && (
+                  <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Download size={16} className="text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">
+                        Fichier joint : {homework.nom_fichier_original}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDownload(homework)}
+                      disabled={!!downloadingIds[homework.id]}
+                      className={`mt-1 text-xs underline ${downloadingIds[homework.id] ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}`}
+                      aria-busy={!!downloadingIds[homework.id]}
+                    >
+                      {downloadingIds[homework.id] ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Téléchargement…
+                        </span>
+                      ) : (
+                        'Télécharger'
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
@@ -253,6 +409,27 @@ const HomeworkManagement = ({ user }) => {
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Fichier joint (optionnel)
+              </label>
+              <input
+                type="file"
+                name="fichier"
+                accept=".pdf,.doc,.docx,.txt,.rtf"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Formats acceptés : PDF, DOC, DOCX, TXT, RTF (max 10MB)
+              </p>
+              {editingHomework?.fichier_attachment && (
+                <div className="mt-2 p-2 bg-gray-50 rounded border">
+                  <p className="text-sm text-gray-600">
+                    Fichier actuel : {editingHomework.nom_fichier_original}
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <button

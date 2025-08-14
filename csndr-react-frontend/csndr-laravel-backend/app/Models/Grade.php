@@ -13,7 +13,10 @@ class Grade extends Model
         'matiere',
         'commentaire',
         'eleve_id',
-        'professeur_id'
+        'professeur_id',
+        'coefficient',
+        'date',
+        'type_evaluation'
     ];
 
     public function eleve()

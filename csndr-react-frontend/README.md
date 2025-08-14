@@ -1,199 +1,177 @@
-# Centre Scolaire Notre Dame du Rosaire - Système de Gestion
+# CSNDR - Centre Scolaire Notre Dame du Rosaire
 
-## Description
-
-Système de gestion complet pour le Centre Scolaire Notre Dame du Rosaire de Brazzaville, Congo. Cette application permet la gestion des utilisateurs, des messages, des événements, des devoirs et des notes selon les rôles définis.
-
-## Fonctionnalités
-
-### 🔐 Système d'authentification
-- Connexion sécurisée avec tokens JWT
-- Gestion des rôles utilisateurs (Admin, Professeur, Parent, Élève)
-- Interface adaptée selon le rôle de l'utilisateur
-
-### 💬 Système de messagerie
-- Envoi et réception de messages entre utilisateurs
-- Conversations en temps réel
-- Restrictions selon les rôles :
-  - **Admin** : Peut discuter avec tout le monde
-  - **Professeur** : Peut discuter avec admin, autres professeurs, parents et élèves de sa classe
-  - **Parent** : Peut discuter avec admin, professeurs et ses enfants
-  - **Élève** : Accès limité aux messages
-
-### 📅 Gestion des événements
-- **Admin uniquement** : Création, modification et suppression d'événements
-- Consultation des événements par tous les utilisateurs
-- Interface moderne avec design responsive
-
-### 📚 Gestion des devoirs
-- **Admin et Professeurs** : Création et gestion des devoirs
-- **Parents** : Consultation des devoirs de leurs enfants
-- **Élèves** : Consultation des devoirs de leur classe
-- Dates limites et descriptions détaillées
-
-### 📊 Gestion des notes
-- **Admin et Professeurs** : Création et gestion des notes
-- **Parents** : Consultation des notes de leurs enfants
-- **Élèves** : Consultation de leurs propres notes
-- Système de notation sur 20 avec commentaires
-
-### 👥 Gestion des utilisateurs
-- **Admin uniquement** : Création et gestion des comptes utilisateurs
-- Attribution des rôles et classes
-- Interface d'administration complète
-
-## Architecture Technique
-
-### Frontend (React.js)
-- **Framework** : React 18 avec Hooks
-- **Styling** : Tailwind CSS avec design system personnalisé
-- **Routing** : React Router v6
-- **State Management** : useState et useEffect
-- **UI Components** : Composants modulaires réutilisables
-
-### Backend (Laravel)
-- **Framework** : Laravel 10
-- **Authentication** : Laravel Sanctum (JWT)
-- **Database** : MySQL avec migrations
-- **API** : RESTful API avec validation
-- **CORS** : Configuration pour développement
-
-## Structure des Rôles
-
-### 🎯 Admin
-- Accès complet à toutes les fonctionnalités
-- Gestion des utilisateurs, classes, événements
-- Création de devoirs et notes
-- Messagerie avec tous les utilisateurs
-
-### 👨‍🏫 Professeur
-- Gestion des devoirs pour ses classes
-- Création et modification de notes
-- Messagerie avec admin, collègues, parents et élèves
-- Consultation des événements
-
-### 👨‍👩‍👧‍👦 Parent
-- Consultation des devoirs de ses enfants
-- Consultation des notes de ses enfants
-- Messagerie avec admin, professeurs et ses enfants
-- Consultation des événements
-
-### 👨‍🎓 Élève
-- Consultation de ses devoirs
-- Consultation de ses notes
-- Messagerie limitée
-- Consultation des événements
-
-## Installation
+## 🚀 Démarrage Rapide
 
 ### Prérequis
+- PHP 7.4+ avec extensions : BCMath, Ctype, JSON, Mbstring, OpenSSL, PDO, Tokenizer, XML
+- Composer
+- MySQL/MariaDB avec base `csndr_db`
 - Node.js 16+ et npm
-- PHP 8.1+ et Composer
-- MySQL 8.0+
-- Laravel CLI
 
-### Frontend
+### Configuration Base de Données
+1. **Copier le fichier `.env.example` vers `.env`** dans `csndr-laravel-backend/`
+2. **Configurer la base de données** dans `.env` :
+   ```env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=csndr_db
+   DB_USERNAME=root
+   DB_PASSWORD=votre_mot_de_passe
+   ```
+
+### Démarrage Automatique
 ```bash
+# Dans le répertoire racine du projet
+.\start-project.bat
+```
+
+### Démarrage Manuel
+```bash
+# Terminal 1 - Backend Laravel
+cd csndr-react-frontend/csndr-laravel-backend
+composer install
+php artisan key:generate
+php artisan serve --host=127.0.0.1 --port=8000
+
+# Terminal 2 - Frontend React
 cd csndr-react-frontend
 npm install
 npm start
 ```
 
-### Backend
-```bash
-cd csndr-react-frontend/csndr-laravel-backend
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate
-php artisan serve
+## 🔑 Comptes de Test Disponibles
+
+**Base de données :** `csndr_db` (déjà configurée et fonctionnelle)
+
+### 👑 Administrateur
+- **Email :** `admin@csndr.test`
+- **Mot de passe :** `Password123!`
+- **Rôle :** Administrateur complet
+
+### 👨‍🏫 Professeurs
+- **prof1@csndr.test** / `Password123!` - Classe CP-A
+- **prof2@csndr.test** / `Password123!` - Classe CE1-A  
+- **prof3@csndr.test** / `Password123!` - Classe CE2-A
+
+### 👨‍👩‍👧‍👦 Parents
+- **parent1@csndr.test** / `Password123!` - Famille Durand
+- **parent2@csndr.test** / `Password123!` - Famille Moreau
+- **parent3@csndr.test** / `Password123!` - Famille Simon
+
+### 👧👦 Élèves
+- **eleve1@csndr.test** / `Password123!` - Emma Durand (CP-A)
+- **eleve2@csndr.test** / `Password123!` - Lucas Moreau (CE1-A)
+- **eleve3@csndr.test** / `Password123!` - Léa Simon (CE2-A)
+- **eleve4@csndr.test** / `Password123!` - Thomas Durand (CM1-A)
+- **eleve5@csndr.test** / `Password123!` - Jade Moreau (CM2-A)
+
+## 🏗️ Architecture
+
+### Frontend (React 19.1.1)
+- **Framework :** React avec Hooks et Context API
+- **Routing :** React Router v7
+- **Styling :** Tailwind CSS avec palette personnalisée
+- **HTTP Client :** Axios avec intercepteurs
+- **État :** Context API pour l'authentification
+
+### Backend (Laravel 8.75)
+- **Framework :** Laravel avec Sanctum pour l'authentification
+- **Base de données :** MySQL/MariaDB avec Eloquent ORM
+- **API :** RESTful avec authentification JWT
+- **Migrations :** Structure de base de données complète
+
+## ✨ Fonctionnalités
+
+### 🔐 Authentification
+- Connexion/déconnexion sécurisée
+- Gestion des rôles (Admin, Professeur, Parent, Élève)
+- Tokens JWT pour l'API
+
+### 👥 Gestion des Utilisateurs
+- CRUD complet des utilisateurs
+- Attribution des rôles et classes
+- Gestion des relations parent-enfant
+
+### 🏫 Gestion des Classes
+- Création/modification/suppression des classes
+- Attribution des professeurs aux classes
+
+### 💬 Système de Messagerie
+- Conversations privées entre utilisateurs
+- Gestion des conversations par rôle
+
+### 📅 Gestion des Événements
+- Création et gestion des événements scolaires
+- Dates de début et fin
+
+### 📚 Gestion des Devoirs
+- Création et attribution des devoirs
+- Upload de fichiers
+- Gestion des dates limites
+
+### 📊 Gestion des Notes
+- Saisie des notes avec coefficients
+- Commentaires des professeurs
+- Historique des évaluations
+
+## 🔧 Problèmes Résolus
+
+✅ **Authentification :** Remplacement du système mock par l'API Laravel  
+✅ **Base de données :** Connexion directe à `csndr_db` sans données mockées  
+✅ **API :** Toutes les routes fonctionnelles et testées  
+✅ **Comptes de test :** 15 comptes créés avec relations correctes  
+✅ **Migrations :** Structure de base de données optimisée  
+✅ **Gestion d'erreurs :** Composant Toast standardisé  
+✅ **Configuration :** Fichier de configuration centralisé  
+
+## 📁 Structure des Fichiers
+
+```
+csndr-react-frontend/
+├── src/
+│   ├── components/          # Composants React
+│   ├── services/            # Services API
+│   ├── config/              # Configuration
+│   └── assets/              # Ressources statiques
+├── csndr-laravel-backend/   # Backend Laravel
+│   ├── app/                 # Logique métier
+│   ├── database/            # Migrations et seeders
+│   ├── routes/              # Routes API
+│   └── config/              # Configuration Laravel
+└── start-project.bat        # Script de démarrage automatique
 ```
 
-## Configuration
+## 🚨 Dépannage
 
-### Variables d'environnement Backend
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=csndr_db
-DB_USERNAME=root
-DB_PASSWORD=
+### Erreur de connexion à la base de données
+- Vérifier que MySQL/MariaDB est démarré
+- Vérifier les paramètres dans `.env`
+- Vérifier que la base `csndr_db` existe
 
-SANCTUM_STATEFUL_DOMAINS=localhost:3000
-SESSION_DOMAIN=localhost
-```
+### Erreur 404 sur l'API
+- Vérifier que le serveur Laravel est démarré sur le port 8000
+- Vérifier que les routes sont bien définies dans `routes/api.php`
 
-### Configuration Frontend
-Le frontend est configuré pour se connecter à `http://127.0.0.1:8000/api` par défaut.
+### Problème d'authentification
+- Vérifier que les comptes de test existent dans la base
+- Vérifier que le token JWT est bien envoyé dans les headers
 
-## Design System
+## 📝 Mises à Jour
 
-### Couleurs
-- **Primary Blue** : #1D4ED8 (Bleu principal)
-- **Secondary Blue** : #3B82F6 (Bleu secondaire)
-- **Success Green** : #10B981 (Vert succès)
-- **Warning Yellow** : #F59E0B (Jaune avertissement)
-- **Error Red** : #EF4444 (Rouge erreur)
+### Dernière mise à jour : 10/08/2025
+- ✅ Création des comptes de test dans `csndr_db`
+- ✅ Test complet de l'API d'authentification
+- ✅ Vérification des routes protégées
+- ✅ Documentation des comptes de test
 
-### Rôles et Couleurs
-- **Admin** : Rouge (#DC2626)
-- **Professeur** : Vert (#059669)
-- **Parent** : Bleu (#2563EB)
-- **Élève** : Violet (#7C3AED)
+## 🌐 URLs d'accès
 
-## API Endpoints
+- **Frontend React :** http://localhost:3000
+- **Backend Laravel :** http://127.0.0.1:8000
+- **API :** http://127.0.0.1:8000/api
+- **Documentation Laravel :** https://laravel.com/docs
 
-### Authentication
-- `POST /api/auth/login` - Connexion
-- `POST /api/auth/logout` - Déconnexion
+---
 
-### Messages
-- `GET /api/messages` - Liste des messages
-- `GET /api/messages/conversations` - Conversations
-- `GET /api/messages/available-users` - Utilisateurs disponibles
-- `POST /api/messages` - Envoyer un message
-- `GET /api/messages/{id}` - Messages d'une conversation
-
-### Événements
-- `GET /api/events` - Liste des événements
-- `POST /api/events` - Créer un événement (Admin)
-- `PUT /api/events/{id}` - Modifier un événement (Admin)
-- `DELETE /api/events/{id}` - Supprimer un événement (Admin)
-
-### Devoirs
-- `GET /api/homework` - Liste des devoirs
-- `POST /api/homework` - Créer un devoir (Admin/Prof)
-- `PUT /api/homework/{id}` - Modifier un devoir (Admin/Prof)
-- `DELETE /api/homework/{id}` - Supprimer un devoir (Admin/Prof)
-
-### Notes
-- `GET /api/grades` - Liste des notes
-- `POST /api/grades` - Créer une note (Admin/Prof)
-- `PUT /api/grades/{id}` - Modifier une note (Admin/Prof)
-- `DELETE /api/grades/{id}` - Supprimer une note (Admin/Prof)
-
-## Sécurité
-
-- Authentification JWT avec Laravel Sanctum
-- Validation des données côté serveur
-- Protection CSRF
-- Gestion des permissions par rôle
-- Validation des accès aux ressources
-
-## Déploiement
-
-### Production
-1. Configurer les variables d'environnement
-2. Optimiser Laravel (`php artisan config:cache`, `php artisan route:cache`)
-3. Build du frontend (`npm run build`)
-4. Configurer le serveur web (Apache/Nginx)
-5. Configurer SSL/TLS
-
-## Support
-
-Pour toute question ou problème, contactez l'équipe de développement.
-
-## Licence
-
-Projet privé pour le Centre Scolaire Notre Dame du Rosaire de Brazzaville.
+**Projet CSNDR** - Système de gestion scolaire complet et fonctionnel ! 🎓

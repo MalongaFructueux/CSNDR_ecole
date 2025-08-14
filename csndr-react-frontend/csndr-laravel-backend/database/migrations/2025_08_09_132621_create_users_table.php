@@ -24,11 +24,15 @@ class CreateUsersTable extends Migration
             $table->enum('role', ['admin', 'professeur', 'parent', 'eleve']);
             // Clé étrangère vers la table des classes (peut être nulle)
             $table->unsignedBigInteger('classe_id')->nullable();
+            // Clé étrangère vers la table des parents (peut être nulle)
+            $table->unsignedBigInteger('parent_id')->nullable();
             // Timestamps pour suivre la création et les mises à jour
             $table->timestamps();
 
-            // Définition de la contrainte de clé étrangère
+            // Définition de la contrainte de clé étrangère pour la classe
             $table->foreign('classe_id')->references('id')->on('classes')->onDelete('set null');
+            // Définition de la contrainte de clé étrangère pour le parent
+            $table->foreign('parent_id')->references('id')->on('users')->onDelete('set null');
         });
     }
 

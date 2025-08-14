@@ -13,7 +13,8 @@ class CreateEvenementsTable extends Migration
             $table->id(); // Identifiant unique
             $table->string('titre'); // Titre
             $table->text('description'); // Description
-            $table->date('date'); // Date
+            $table->datetime('date_debut'); // Date et heure de début
+            $table->datetime('date_fin'); // Date et heure de fin
             $table->unsignedBigInteger('auteur_id'); // Clé étrangère
             $table->timestamps();
 

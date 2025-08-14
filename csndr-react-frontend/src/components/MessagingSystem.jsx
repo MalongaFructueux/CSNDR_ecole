@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Send, MessageCircle, User } from 'lucide-react';
+import { Plus, Send, MessageCircle, User, Search, Download } from 'lucide-react';
 import Modal from './Modal';
 import RoleBadge from './RoleBadge';
-import { getConversations, getAvailableUsers, sendMessage as sendMessageApi, getConversationMessages } from '../services/api';
+import { getConversations, getAvailableUsers, sendMessage as sendMessageApi, getConversationMessages, searchUsers, markMessagesAsRead } from '../services/api';
 
 /**
  * Composant MessagingSystem - Système de messagerie complet avec gestion des conversations
@@ -12,12 +12,13 @@ import { getConversations, getAvailableUsers, sendMessage as sendMessageApi, get
  * - L'envoi de nouveaux messages
  * - La gestion des conversations en temps réel
  * - Les restrictions selon les rôles utilisateurs
+ * - La recherche d'utilisateurs pour créer de nouvelles conversations
  * 
  * Fonctionnalités principales :
  * - Interface de chat moderne avec design responsive
  * - Gestion des conversations groupées par utilisateur
  * - Envoi et réception de messages en temps réel
- * - Modal pour créer de nouvelles conversations
+ * - Modal pour créer de nouvelles conversations avec recherche
  * - Affichage des badges de rôle des utilisateurs
  * 
  * @param {Object} user - Objet utilisateur connecté
@@ -31,6 +32,11 @@ const MessagingSystem = ({ user }) => {
   const [availableUsers, setAvailableUsers] = useState([]);
   const [currentMessages, setCurrentMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [newConversationMessage, setNewConversationMessage] = useState('');
 
   /**
    * Chargement initial des conversations et utilisateurs disponibles
@@ -41,15 +47,7 @@ const MessagingSystem = ({ user }) => {
     loadAvailableUsers();
   }, [user]);
 
-  /**
-   * Chargement des messages d'une conversation spécifique
-   * Exécuté quand une conversation est sélectionnée
-   */
-  useEffect(() => {
-    if (selectedConversation) {
-      loadConversationMessages(selectedConversation);
-    }
-  }, [selectedConversation]);
+
 
   /**
    * Charge toutes les conversations de l'utilisateur connecté
@@ -79,16 +77,27 @@ const MessagingSystem = ({ user }) => {
     }
   };
 
+
+
   /**
-   * Charge les messages d'une conversation spécifique
-   * @param {number} conversationId - ID de la conversation
+   * Recherche d'utilisateurs par nom/prénom/email
+   * @param {string} query - Terme de recherche
    */
-  const loadConversationMessages = async (conversationId) => {
+  const handleSearchUsers = async (query) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
     try {
-      const response = await getConversationMessages(conversationId);
-      setCurrentMessages(response.data);
+      setSearching(true);
+      const response = await searchUsers(query);
+      setSearchResults(response.data);
     } catch (error) {
-      console.error('Erreur lors du chargement des messages:', error);
+      console.error('Erreur lors de la recherche:', error);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -99,19 +108,27 @@ const MessagingSystem = ({ user }) => {
    */
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (selectedConversation && newMessage.trim()) {
-      try {
-        await sendMessageApi({
-          destinataire_id: selectedConversation,
-          contenu: newMessage
-        });
-        setNewMessage('');
-        // Rechargement des messages et conversations
-        loadConversationMessages(selectedConversation);
-        loadConversations();
-      } catch (error) {
-        console.error('Erreur lors de l\'envoi du message:', error);
-      }
+    if (!newMessage.trim() || !selectedConversation) return;
+
+    try {
+      await sendMessageApi({
+        destinataire_id: selectedConversation.user.id,
+        contenu: newMessage.trim()
+      });
+      
+      setNewMessage('');
+      
+      // Recharger les messages de la conversation actuelle
+      const response = await getConversationMessages(selectedConversation.user.id);
+      setCurrentMessages(response.data);
+      
+      // Recharger la liste des conversations pour mettre à jour le dernier message
+      const conversationsResponse = await getConversations();
+      setConversations(conversationsResponse.data);
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi du message:', error);
+      setError('Impossible d\'envoyer le message.');
     }
   };
 
@@ -121,38 +138,74 @@ const MessagingSystem = ({ user }) => {
    */
   const handleNewConversation = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const destinataireId = formData.get('destinataire_id');
-    const contenu = formData.get('contenu');
 
-    if (destinataireId && contenu.trim()) {
-      try {
-        await sendMessageApi({
-          destinataire_id: parseInt(destinataireId),
-          contenu: contenu.trim()
-        });
-        setIsModalOpen(false);
-        loadConversations();
-        e.target.reset();
-      } catch (error) {
-        console.error('Erreur lors de l\'envoi du message:', error);
-      }
+    if (!selectedUserId || !newConversationMessage.trim()) {
+      console.error('Aucun utilisateur sélectionné ou message vide.');
+      return;
+    }
+
+    try {
+      await sendMessageApi({
+        destinataire_id: selectedUserId,
+        contenu: newConversationMessage.trim()
+      });
+      
+      setIsModalOpen(false);
+      setSearchQuery('');
+      setSearchResults([]);
+      setSelectedUserId(null);
+      setNewConversationMessage(''); // Clear message on send
+      // Recharger les conversations
+      await loadConversations();
+    } catch (error) {
+      console.error('Erreur lors de la création de la conversation:', error);
     }
   };
 
   /**
-   * Formate une date en format français lisible
+   * Sélectionne une conversation et marque les messages comme lus si nécessaire
+   * @param {Object} conversation - Objet de conversation
+   */
+  const handleSelectConversation = async (conversation) => {
+    // Si la conversation est déjà sélectionnée, ne rien faire
+    if (selectedConversation?.user.id === conversation.user.id) return;
+
+    setSelectedConversation(conversation);
+    try {
+      // Marquer les messages comme lus si la conversation a des messages non lus
+      if (conversation.unread_count > 0) {
+        await markMessagesAsRead(conversation.user.id);
+        // Mettre à jour l'état des conversations pour refléter que les messages sont lus
+        setConversations(prevConversations =>
+          prevConversations.map(c =>
+            c.user.id === conversation.user.id ? { ...c, unread_count: 0 } : c
+          )
+        );
+      }
+      // Récupérer les messages de la conversation sélectionnée
+      const response = await getConversationMessages(conversation.user.id);
+      setCurrentMessages(response.data);
+    } catch (error) {
+      console.error('Erreur lors de la sélection de la conversation:', error);
+      setError('Impossible de charger les messages.');
+    }
+  };
+
+  /**
+   * Formate une date pour l'affichage
    * @param {string} dateString - Date au format ISO
-   * @returns {string} Date formatée
+   * @returns {string} - Date et heure formatées
    */
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
+    
+    return date.toLocaleString('fr-FR', {
       year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'
     });
   };
 
@@ -196,38 +249,37 @@ const MessagingSystem = ({ user }) => {
               </div>
             ) : (
               conversations.map((conversation) => {
-                const otherUser = conversation.user;
-                const lastMessage = conversation.last_message;
-                const isSelected = selectedConversation === otherUser.id;
-                
+                const isSelected = selectedConversation?.user.id === conversation.user.id;
                 return (
-                  <div
-                    key={otherUser.id}
-                    onClick={() => setSelectedConversation(otherUser.id)}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-                      isSelected ? 'bg-primary-50 border-r-4 border-primary-600' : ''
+                  <li
+                    key={conversation.user.id}
+                    onClick={() => handleSelectConversation(conversation)}
+                    className={`flex items-center justify-between p-4 cursor-pointer transition-colors hover:bg-gray-100 ${
+                      isSelected ? 'bg-blue-100 border-r-4 border-blue-500' : ''
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      {/* Avatar de l'utilisateur */}
-                      <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-medium">
-                        {otherUser.prenom[0]}{otherUser.nom[0]}
+                    <div className="flex items-center w-full">
+                      <div className="w-12 h-12 rounded-full bg-gray-300 flex-shrink-0 mr-4 flex items-center justify-center">
+                        <User className="w-6 h-6 text-gray-600" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-gray-900 truncate">
-                            {otherUser.prenom} {otherUser.nom}
-                          </p>
-                          <RoleBadge role={otherUser.role} />
+                      <div className="flex-grow overflow-hidden">
+                        <div className="flex items-center">
+                          <p className="font-semibold text-gray-800 truncate">{`${conversation.user.prenom} ${conversation.user.nom}`}</p>
+                          <RoleBadge role={conversation.user.role} />
                         </div>
-                        {lastMessage && (
-                          <p className="text-sm text-gray-500 truncate">
-                            {lastMessage.contenu}
-                          </p>
-                        )}
+                        <p className="text-sm text-gray-500 truncate">
+                          {conversation.last_message?.contenu || 'Aucun message'}
+                        </p>
                       </div>
+                      {conversation.unread_count > 0 && (
+                        <div className="ml-4 flex-shrink-0">
+                          <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                            {conversation.unread_count}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </li>
                 );
               })
             )}
@@ -311,21 +363,55 @@ const MessagingSystem = ({ user }) => {
           <form onSubmit={handleNewConversation} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Destinataire
+                Rechercher un destinataire
               </label>
-              <select
-                name="destinataire_id"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="">Sélectionnez un destinataire</option>
-                {availableUsers.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.prenom} {user.nom} - <RoleBadge role={user.role} />
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSelectedUserId(null); // Reset selection when query changes
+                    handleSearchUsers(e.target.value);
+                  }}
+                  placeholder="Tapez le nom, prénom ou email..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent pr-10"
+                />
+                <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+              
+              {/* Résultats de recherche */}
+              {searching && (
+                <div className="mt-2 text-sm text-gray-500">
+                  Recherche en cours...
+                </div>
+              )}
+              
+              {searchResults.length > 0 && (
+                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                  {searchResults.map((user) => (
+                    <li 
+                      key={user.id}
+                      onClick={() => {
+                        if (user && user.prenom && user.nom) {
+                          setSearchQuery(`${user.prenom} ${user.nom}`);
+                        }
+                        setSelectedUserId(user.id);
+                        setSearchResults([]);
+                      }}
+                      className="p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{user.prenom} {user.nom}</span>
+                        <RoleBadge role={user.role} />
+                        <span className="text-sm text-gray-500">{user.email}</span>
+                      </div>
+                    </li>
+                  ))}
+                </div>
+              )}
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Message
@@ -334,21 +420,30 @@ const MessagingSystem = ({ user }) => {
                 name="contenu"
                 required
                 rows={4}
+                value={newConversationMessage}
+                onChange={(e) => setNewConversationMessage(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="Tapez votre message..."
               ></textarea>
             </div>
+            
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setNewConversationMessage(''); // Also clear message on cancel
+                }}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                disabled={!selectedUserId || !newConversationMessage.trim()}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Envoyer
               </button>

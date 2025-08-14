@@ -14,7 +14,10 @@ class CreateNotesTable extends Migration
             $table->unsignedBigInteger('eleve_id'); // Clé étrangère
             $table->string('matiere'); // Matière
             $table->decimal('note', 5, 2); // Note (ex. : 15.50)
+            $table->decimal('coefficient', 3, 1)->default(1.0); // Coefficient de la note
+            $table->text('commentaire')->nullable(); // Commentaire du professeur
             $table->unsignedBigInteger('professeur_id'); // Clé étrangère
+            $table->date('date'); // Date de la note
             $table->timestamps();
 
             $table->foreign('eleve_id')->references('id')->on('users')->onDelete('cascade');
