@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
@@ -26,7 +27,13 @@ class UserController extends Controller
             'mot_de_passe' => ['required','string','min:6'],
             'role' => ['required', Rule::in(['admin','professeur','parent','eleve'])],
             'classe_id' => ['nullable','integer','exists:classes,id'],
-            'parent_id' => ['nullable','integer','exists:users,id'],
+            'parent_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where(function ($query) {
+                    return $query->where('role', 'parent');
+                })
+            ],
         ]);
 
         $user = new User();
@@ -36,7 +43,18 @@ class UserController extends Controller
         $user->mot_de_passe = Hash::make($validated['mot_de_passe']);
         $user->role = $validated['role'];
         $user->classe_id = $validated['classe_id'] ?? null;
-        $user->parent_id = $validated['parent_id'] ?? null;
+
+        // Si l'utilisateur est un élève et qu'aucun parent_id n'est fourni,
+        // on lui assigne un parent existant de manière aléatoire.
+        if ($validated['role'] === 'eleve' && empty($validated['parent_id'])) {
+            $parent = User::where('role', 'parent')->inRandomOrder()->first();
+            if ($parent) {
+                $user->parent_id = $parent->id;
+            }
+        } else {
+            $user->parent_id = $validated['parent_id'] ?? null;
+        }
+
         $user->save();
 
         return response()->json([
@@ -56,7 +74,13 @@ class UserController extends Controller
             'mot_de_passe' => ['nullable','string','min:6'],
             'role' => ['required', Rule::in(['admin','professeur','parent','eleve'])],
             'classe_id' => ['nullable','integer','exists:classes,id'],
-            'parent_id' => ['nullable','integer','exists:users,id'],
+            'parent_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where(function ($query) {
+                    return $query->where('role', 'parent');
+                })
+            ],
         ]);
 
         $user->nom = $validated['nom'];
@@ -104,9 +128,11 @@ class UserController extends Controller
     public function getChildrenByParent($parentId)
     {
         $parent = User::findOrFail($parentId);
-        
-        if ($parent->role !== 'parent') {
-            return response()->json(['message' => 'Utilisateur non autorisé'], 403);
+
+        // Autoriser uniquement l'admin ou le parent lui-même
+        $authUser = Auth::user();
+        if (!($authUser && ($authUser->role === 'admin' || (int)$authUser->id === (int)$parentId))) {
+            return response()->json(['message' => 'Accès refusé'], 403);
         }
 
         $children = User::where('parent_id', $parentId)

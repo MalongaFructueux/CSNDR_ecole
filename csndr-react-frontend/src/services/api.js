@@ -137,6 +137,13 @@ export const deleteUser = (id) => api.delete(`/users/${id}`);
  */
 export const updateUser = (id, userData) => api.put(`/users/${id}`, userData);
 
+/**
+ * Récupération des enfants d'un parent (auth parent lui-même ou admin)
+ * @param {number} parentId - ID du parent
+ * @returns {Promise} - Liste des enfants ({id, nom, prenom, email, classe_id, created_at})
+ */
+export const getParentChildren = (parentId) => api.get(`/users/parent/${parentId}/children`);
+
 // ============================================================================
 // ROUTES DE GESTION DES CLASSES
 // ============================================================================

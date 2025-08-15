@@ -61,8 +61,10 @@ const UserManagement = ({ user }) => {
       errors.classe_id = 'Une classe est requise pour un élève';
     }
     
-    if (formData.role === 'eleve' && !formData.parent_id) {
-      errors.parent_id = 'Un parent est requis pour un élève';
+    // Le parent_id est optionnel. Si non fourni, le backend en assignera un.
+    // On valide seulement si une valeur est entrée mais n'est pas un nombre.
+    if (formData.parent_id && !/^[0-9]+$/.test(formData.parent_id)) {
+      errors.parent_id = 'L\'ID du parent doit être un nombre.';
     }
     
     setFormErrors(errors);
@@ -133,53 +135,55 @@ const UserManagement = ({ user }) => {
   // Gestion du formulaire
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) {
       return;
     }
-    
-    // Utiliser directement formData au lieu de FormData
-    const userData = {
-      nom: formData.nom.trim(),
-      prenom: formData.prenom.trim(),
-      email: formData.email.trim(),
-      role: formData.role,
-      classe_id: formData.classe_id || null,
-      parent_id: formData.parent_id || null
-    };
 
-    // Ajouter le mot de passe seulement si fourni ou si c'est une création
-    if (formData.mot_de_passe || !editingUser) {
-      userData.mot_de_passe = formData.mot_de_passe;
+    setSubmitting(true);
+    setError(null);
+
+    const dataToSend = { ...formData };
+
+    if (editingUser && !dataToSend.mot_de_passe) {
+      delete dataToSend.mot_de_passe;
+    }
+
+    // Assurer que les IDs sont des nombres ou null
+    if (dataToSend.classe_id) {
+      dataToSend.classe_id = parseInt(dataToSend.classe_id, 10);
+    } else {
+      delete dataToSend.classe_id;
+    }
+
+    if (dataToSend.parent_id) {
+      dataToSend.parent_id = parseInt(dataToSend.parent_id, 10);
+    } else {
+      delete dataToSend.parent_id;
     }
 
     try {
-      setSubmitting(true);
       if (editingUser) {
-        // Modification d'un utilisateur existant
-        await updateUser(editingUser.id, userData);
-        setToast({ open: true, type: 'success', message: "Utilisateur modifié avec succès" });
+        await updateUser(editingUser.id, dataToSend);
+        setToast({ open: true, type: 'success', message: 'Utilisateur modifié avec succès' });
       } else {
-        // Création d'un nouvel utilisateur
-        await createUser(userData);
-        setToast({ open: true, type: 'success', message: "Utilisateur créé avec succès" });
+        await createUser(dataToSend);
+        setToast({ open: true, type: 'success', message: 'Utilisateur créé avec succès' });
       }
+      
+      // Réinitialiser et fermer le modal
       setIsModalOpen(false);
       setEditingUser(null);
       setFormData({
-        nom: '',
-        prenom: '',
-        email: '',
-        mot_de_passe: '',
-        role: 'eleve',
-        classe_id: '',
-        parent_id: ''
+        nom: '', prenom: '', email: '', mot_de_passe: '', 
+        role: 'eleve', classe_id: '', parent_id: ''
       });
       setFormErrors({});
-      await loadUsers(); // Attendre que loadUsers se termine
-    } catch (error) {
-      console.error('Erreur:', error);
-      const errorMessage = error.response?.data?.message || error.message || "Erreur lors de la sauvegarde de l'utilisateur";
+
+      await loadUsers();
+
+    } catch (err) {
+      console.error('Erreur:', err);
+      const errorMessage = err.response?.data?.message || err.message || "Erreur lors de la sauvegarde de l'utilisateur";
       setToast({ open: true, type: 'error', message: errorMessage });
     } finally {
       setSubmitting(false);

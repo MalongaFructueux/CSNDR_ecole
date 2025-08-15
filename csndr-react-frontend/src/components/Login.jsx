@@ -136,7 +136,7 @@ const Login = ({ onLogin }) => {
           </button>
         </form>
         
-        {/* Informations de test */}
+        {/* Informations de test
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <h3 className="text-sm font-medium text-blue-800 mb-2">Comptes de test :</h3>
           <div className="text-xs text-blue-700 space-y-1">
@@ -145,7 +145,7 @@ const Login = ({ onLogin }) => {
             <p><strong>Parent:</strong> parent@csndr.test / Password123!</p>
             <p><strong>Élève:</strong> eleve@csndr.test / Password123!</p>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

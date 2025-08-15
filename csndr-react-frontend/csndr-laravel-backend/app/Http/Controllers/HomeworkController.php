@@ -37,17 +37,14 @@ class HomeworkController extends Controller
                 break;
                 
             case 'parent':
-                // Parent voit les devoirs de ses enfants
-                $enfantsIds = User::where('parent_id', $user->id)->pluck('id');
-                $homeworks = Homework::whereIn('classe_id', function($query) use ($enfantsIds) {
-                    $query->select('classe_id')
-                          ->from('users')
-                          ->whereIn('id', $enfantsIds);
-                })
+            // Parent voit les devoirs des classes de ses enfants
+            $enfantsIds = User::where('parent_id', $user->id)->pluck('id');
+            $classesIds = User::whereIn('id', $enfantsIds)->pluck('classe_id')->filter();
+            $homeworks = Homework::whereIn('classe_id', $classesIds)
                 ->with(['classe', 'professeur'])
                 ->orderBy('date_limite', 'desc')
                 ->get();
-                break;
+            break;
                 
             case 'eleve':
                 // Élève voit les devoirs de sa classe

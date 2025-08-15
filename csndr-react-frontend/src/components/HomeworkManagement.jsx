@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, BookOpen, Edit, Trash2, Calendar, Download, Loader2 } from 'lucide-react';
 import Modal from './Modal';
 import RoleBadge from './RoleBadge';
-import { getHomework, createHomework, updateHomework, deleteHomework, getClasses } from '../services/api';
+import { getHomework, createHomework, updateHomework, deleteHomework, getClasses, getParentChildren } from '../services/api';
 import api from '../services/api';
 
 const HomeworkManagement = ({ user }) => {
@@ -14,11 +14,16 @@ const HomeworkManagement = ({ user }) => {
   const [error, setError] = useState(null);
   const [downloadingIds, setDownloadingIds] = useState({});
   const [success, setSuccess] = useState(null);
+  const [children, setChildren] = useState([]);
+  const [selectedChildId, setSelectedChildId] = useState('');
 
   useEffect(() => {
     loadHomeworks();
     if (user.role === 'admin' || user.role === 'professeur') {
       loadClasses();
+    }
+    if (user.role === 'parent') {
+      loadChildren();
     }
   }, []);
 
@@ -32,6 +37,15 @@ const HomeworkManagement = ({ user }) => {
       console.error('Erreur:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadChildren = async () => {
+    try {
+      const response = await getParentChildren(user.id);
+      setChildren(response.data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des enfants du parent:', error);
     }
   };
 
@@ -230,6 +244,15 @@ const HomeworkManagement = ({ user }) => {
     );
   }
 
+  // Appliquer le filtre par enfant pour les parents: filtre par classe de l'enfant
+  const displayedHomeworks = (() => {
+    if (user.role !== 'parent') return homeworks;
+    if (!selectedChildId) return homeworks;
+    const child = children.find(c => String(c.id) === String(selectedChildId));
+    if (!child) return homeworks;
+    return homeworks.filter(hw => String(hw.classe_id) === String(child.classe_id));
+  })();
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
@@ -238,15 +261,31 @@ const HomeworkManagement = ({ user }) => {
             <h2 className="text-2xl font-bold text-gray-900">Devoirs</h2>
             <p className="text-gray-600">Gestion des devoirs du Centre Scolaire</p>
           </div>
-          {canEdit && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors mt-4 sm:mt-0"
-            >
-              <Plus size={16} />
-              Nouveau devoir
-            </button>
-          )}
+          <div className="flex items-center gap-3 mt-4 sm:mt-0">
+            {user.role === 'parent' && children.length > 0 && (
+              <select
+                value={selectedChildId}
+                onChange={(e) => setSelectedChildId(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Tous les enfants</option>
+                {children.map((child) => (
+                  <option key={child.id} value={child.id}>
+                    {child.prenom} {child.nom}
+                  </option>
+                ))}
+              </select>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <Plus size={16} />
+                Nouveau devoir
+              </button>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -261,7 +300,7 @@ const HomeworkManagement = ({ user }) => {
         )}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {homeworks.map((homework) => (
+          {displayedHomeworks.map((homework) => (
             <div key={homework.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
                 <div className="flex items-center justify-between">

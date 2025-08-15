@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, BookOpen, Edit, Trash2, TrendingUp } from 'lucide-react';
 import Modal from './Modal';
 import RoleBadge from './RoleBadge';
-import { getGrades, createGrade, updateGrade, deleteGrade, getUsers } from '../services/api';
+import { getGrades, createGrade, updateGrade, deleteGrade, getUsers, getParentChildren } from '../services/api';
 
 const GradesManagement = ({ user }) => {
   const [grades, setGrades] = useState([]);
@@ -11,11 +11,16 @@ const GradesManagement = ({ user }) => {
   const [editingGrade, setEditingGrade] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [children, setChildren] = useState([]);
+  const [selectedChildId, setSelectedChildId] = useState('');
 
   useEffect(() => {
     loadGrades();
     if (user.role === 'admin' || user.role === 'professeur') {
       loadStudents();
+    }
+    if (user.role === 'parent') {
+      loadChildren();
     }
   }, []);
 
@@ -29,6 +34,15 @@ const GradesManagement = ({ user }) => {
       console.error('Erreur:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadChildren = async () => {
+    try {
+      const response = await getParentChildren(user.id);
+      setChildren(response.data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des enfants du parent:', error);
     }
   };
 
@@ -128,6 +142,11 @@ const GradesManagement = ({ user }) => {
     );
   }
 
+  // Appliquer le filtre par enfant pour les parents
+  const displayedGrades = user.role === 'parent' && selectedChildId
+    ? grades.filter(g => String(g.eleve_id) === String(selectedChildId))
+    : grades;
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
@@ -136,15 +155,31 @@ const GradesManagement = ({ user }) => {
             <h2 className="text-2xl font-bold text-gray-900">Notes</h2>
             <p className="text-gray-600">Gestion des notes du Centre Scolaire</p>
           </div>
-          {canEdit && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors mt-4 sm:mt-0"
-            >
-              <Plus size={16} />
-              Nouvelle note
-            </button>
-          )}
+          <div className="flex items-center gap-3 mt-4 sm:mt-0">
+            {user.role === 'parent' && children.length > 0 && (
+              <select
+                value={selectedChildId}
+                onChange={(e) => setSelectedChildId(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Tous les enfants</option>
+                {children.map((child) => (
+                  <option key={child.id} value={child.id}>
+                    {child.prenom} {child.nom}
+                  </option>
+                ))}
+              </select>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <Plus size={16} />
+                Nouvelle note
+              </button>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -154,7 +189,7 @@ const GradesManagement = ({ user }) => {
         )}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {grades.map((grade) => (
+          {displayedGrades.map((grade) => (
             <div key={grade.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-green-600 to-green-700 p-4">
                 <div className="flex items-center justify-between">
