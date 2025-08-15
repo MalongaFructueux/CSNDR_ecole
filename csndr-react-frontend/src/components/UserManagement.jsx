@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Filter, RefreshCw } from 'lucide-react';
 import Modal from './Modal';
 import RoleBadge from './RoleBadge';
 import { getUsers, createUser, deleteUser, updateUser, searchUsers } from '../services/api';
@@ -220,7 +220,8 @@ const UserManagement = ({ user }) => {
         <h2 className="text-xl sm:text-2xl font-semibold text-title">Gestion des utilisateurs</h2>
         <div className="flex gap-2">
           <button onClick={() => loadUsers()} className="flex items-center gap-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors mt-4 sm:mt-0">
-            🔄 Recharger
+            <RefreshCw size={16} />
+            Recharger
           </button>
           <button onClick={() => openModal()} className="flex items-center gap-2 btn-primary mt-4 sm:mt-0">
             <Plus size={16} />

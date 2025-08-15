@@ -1,6 +1,9 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import RoleBadge from './RoleBadge';
+import {
+  Users, School, Calendar, MessageSquare, Book, BarChart3, LogOut
+} from 'lucide-react';
 
 /**
  * Composant Navigation - Barre de navigation principale avec gestion des rôles
@@ -23,35 +26,31 @@ const Navigation = ({ user, onLogout }) => {
    * Chaque rôle a accès à des fonctionnalités spécifiques
    */
   const menuItems = {
-    // Admin : Accès complet à toutes les fonctionnalités
     admin: [
-      { key: 'users', label: 'Utilisateurs', icon: '👥' },
-      { key: 'classes', label: 'Classes', icon: '🏫' },
-      { key: 'events', label: 'Événements', icon: '📅' },
-      { key: 'messages', label: 'Messages', icon: '💬' },
-      { key: 'homework', label: 'Devoirs', icon: '📚' },
-      { key: 'grades', label: 'Notes', icon: '📊' }
+      { key: 'users', label: 'Utilisateurs', Icon: Users },
+      { key: 'classes', label: 'Classes', Icon: School },
+      { key: 'events', label: 'Événements', Icon: Calendar },
+      { key: 'messages', label: 'Messages', Icon: MessageSquare },
+      { key: 'homework', label: 'Devoirs', Icon: Book },
+      { key: 'grades', label: 'Notes', Icon: BarChart3 }
     ],
-    // Professeur : Gestion des devoirs, notes et communication
     professeur: [
-      { key: 'messages', label: 'Messages', icon: '💬' },
-      { key: 'homework', label: 'Devoirs', icon: '📚' },
-      { key: 'grades', label: 'Notes', icon: '📊' },
-      { key: 'events', label: 'Événements', icon: '📅' }
+      { key: 'messages', label: 'Messages', Icon: MessageSquare },
+      { key: 'homework', label: 'Devoirs', Icon: Book },
+      { key: 'grades', label: 'Notes', Icon: BarChart3 },
+      { key: 'events', label: 'Événements', Icon: Calendar }
     ],
-    // Parent : Consultation des devoirs et notes de ses enfants
     parent: [
-      { key: 'messages', label: 'Messages', icon: '💬' },
-      { key: 'homework', label: 'Devoirs', icon: '📚' },
-      { key: 'grades', label: 'Notes', icon: '📊' },
-      { key: 'events', label: 'Événements', icon: '📅' }
+      { key: 'messages', label: 'Messages', Icon: MessageSquare },
+      { key: 'homework', label: 'Devoirs', Icon: Book },
+      { key: 'grades', label: 'Notes', Icon: BarChart3 },
+      { key: 'events', label: 'Événements', Icon: Calendar }
     ],
-    // Élève : Consultation de ses propres devoirs et notes
     eleve: [
-      { key: 'homework', label: 'Devoirs', icon: '📚' },
-      { key: 'grades', label: 'Notes', icon: '📊' },
-      { key: 'events', label: 'Événements', icon: '📅' },
-      { key: 'messages', label: 'Messages', icon: '💬' }
+      { key: 'homework', label: 'Devoirs', Icon: Book },
+      { key: 'grades', label: 'Notes', Icon: BarChart3 },
+      { key: 'events', label: 'Événements', Icon: Calendar },
+      { key: 'messages', label: 'Messages', Icon: MessageSquare }
     ]
   }[user.role] || [];
 
@@ -93,9 +92,10 @@ const Navigation = ({ user, onLogout }) => {
           </div>
           <button 
             onClick={onLogout} 
-            className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 border border-white/30 hover:border-white/50 shadow-lg"
+            className="flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 border border-white/30 hover:border-white/50 shadow-lg"
           >
-            Déconnexion
+            <LogOut size={18} />
+            <span>Déconnexion</span>
           </button>
         </div>
       </div>
@@ -109,13 +109,13 @@ const Navigation = ({ user, onLogout }) => {
             <button
               key={item.key}
               onClick={() => navigate(path)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm sm:text-base transition-all duration-200 border ${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm sm:text-base transition-all duration-200 border ${
                 active 
                   ? 'bg-white text-primary-700 border-white shadow-lg' 
                   : 'text-white/90 border-white/20 hover:bg-white/10 hover:border-white/30'
               }`}
             >
-              <span>{item.icon}</span>
+              <item.Icon size={18} />
               <span>{item.label}</span>
             </button>
           );
