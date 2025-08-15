@@ -1,3 +1,4 @@
+# Configuration pour Render.com
 services:
   # Service pour la base de données PostgreSQL
   - type: psql
