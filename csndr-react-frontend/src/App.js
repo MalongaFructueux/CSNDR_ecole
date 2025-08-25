@@ -8,8 +8,7 @@ import GradesManagement from './components/GradesManagement';
 import UserManagement from './components/UserManagement';
 import ClassManagement from './components/ClassManagement';
 import Login from './components/Login';
-import Register from './components/Register';
-import { login as loginApi, logout as logoutApi, register as registerApi } from './services/api';
+import api, { login as loginApi, logout as logoutApi } from './services/api';
 
 /**
  * Composant principal App - Point d'entrée de l'application
@@ -38,31 +37,31 @@ function App() {
 
   /**
    * Vérification de l'authentification au montage du composant
-   * Récupère les informations utilisateur depuis le localStorage
+   * Utilise l'API pour vérifier la session côté serveur
    */
   useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('user');
-      
-      if (token && userData) {
-        try {
-          setUser(JSON.parse(userData));
+    const checkAuthStatus = async () => {
+      try {
+        const response = await api.get('/auth/check');
+        if (response.data.authenticated) {
+          setUser(response.data.user);
           setIsAuthenticated(true);
-        } catch (error) {
-          console.error('Erreur lors du parsing des données utilisateur:', error);
-          handleLogout();
         }
+      } catch (error) {
+        console.error('Erreur lors de la vérification de l\'authentification:', error);
+        setIsAuthenticated(false);
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    checkAuth();
+    checkAuthStatus();
   }, []);
 
   /**
    * Gestion de la connexion utilisateur
-   * Authentifie l'utilisateur et stocke les informations en localStorage
+   * Authentifie l'utilisateur via session Laravel
    * 
    * @param {Object} credentials - Email et mot de passe
    * @returns {Promise} - Résultat de l'authentification
@@ -70,13 +69,9 @@ function App() {
   const handleLogin = async (credentials) => {
     try {
       const response = await loginApi(credentials);
-      const { token, user: userData } = response.data;
+      const { user: userData } = response.data || {};
       
-      // Stockage des informations d'authentification
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      // Mise à jour des états
+      // Mise à jour des états (pas de token, utilisation des sessions)
       setUser(userData);
       setIsAuthenticated(true);
       
@@ -85,74 +80,22 @@ function App() {
       console.error('Erreur de connexion:', error);
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Erreur de connexion' 
-      };
-    }
-  };
-
-  /**
-   * Gestion de l'inscription utilisateur
-   * Inscrit l'utilisateur et l'authentifie automatiquement
-   * 
-   * @param {Object} registrationData - Données d'inscription ou token/user si déjà traité
-   * @returns {Promise} - Résultat de l'inscription
-   */
-  const handleRegister = async (registrationData) => {
-    try {
-      // Si les données contiennent déjà token et user, les utiliser directement
-      if (registrationData.token && registrationData.user) {
-        const { token, user: userData } = registrationData;
-        
-        // Stockage des informations d'authentification
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        // Mise à jour des états
-        setUser(userData);
-        setIsAuthenticated(true);
-        
-        return { success: true };
-      }
-      
-      // Sinon, effectuer l'inscription via l'API
-      const response = await registerApi(registrationData);
-      const { token, user: userData } = response.data;
-      
-      // Stockage des informations d'authentification
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      // Mise à jour des états
-      setUser(userData);
-      setIsAuthenticated(true);
-      
-      return { success: true };
-    } catch (error) {
-      console.error('Erreur d\'inscription:', error);
-      return { 
-        success: false, 
-        error: error.response?.data?.message || 'Erreur d\'inscription' 
+        error: error.message || 'Erreur de connexion' 
       };
     }
   };
 
   /**
    * Gestion de la déconnexion utilisateur
-   * Nettoie les données locales et invalide le token
+   * Invalide la session côté serveur
    */
   const handleLogout = async () => {
     try {
-      // Appel API pour invalider le token côté serveur
-      if (localStorage.getItem('token')) {
-        await logoutApi();
-      }
+      // Appel API pour invalider la session côté serveur
+      await logoutApi();
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
     } finally {
-      // Nettoyage des données locales
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      
       // Réinitialisation des états
       setUser(null);
       setIsAuthenticated(false);
@@ -237,10 +180,9 @@ function App() {
             </main>
           </>
         ) : (
-          /* Pages publiques si non authentifié */
+          /* Page de connexion si non authentifié */
           <Routes>
             <Route path="/login" element={<Login onLogin={handleLogin} />} />
-            <Route path="/register" element={<Register onRegister={handleRegister} />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         )}

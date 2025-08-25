@@ -10,9 +10,13 @@ use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
     public function index()
     {
-        // Return users without exposing mot_de_passe hash
         return response()->json(
             User::select('id','nom','prenom','email','role','classe_id','parent_id','created_at','updated_at')->get()
         );
@@ -24,7 +28,7 @@ class UserController extends Controller
             'nom' => ['required','string','max:255'],
             'prenom' => ['required','string','max:255'],
             'email' => ['required','email','max:255', Rule::unique('users','email')],
-            'password' => ['required','string','min:6'],
+            'mot_de_passe' => ['required','string','min:6'],
             'role' => ['required', Rule::in(['admin','professeur','parent','eleve'])],
             'classe_id' => ['nullable','integer','exists:classes,id'],
             'parent_id' => [
@@ -40,7 +44,7 @@ class UserController extends Controller
         $user->nom = $validated['nom'];
         $user->prenom = $validated['prenom'];
         $user->email = $validated['email'];
-        $user->password = Hash::make($validated['password']);
+        $user->mot_de_passe = Hash::make($validated['mot_de_passe']);
         $user->role = $validated['role'];
         $user->classe_id = $validated['classe_id'] ?? null;
 
@@ -71,7 +75,7 @@ class UserController extends Controller
             'nom' => ['required','string','max:255'],
             'prenom' => ['required','string','max:255'],
             'email' => ['required','email','max:255', Rule::unique('users','email')->ignore($id)],
-            'password' => ['nullable','string','min:6'],
+            'mot_de_passe' => ['nullable','string','min:6'],
             'role' => ['required', Rule::in(['admin','professeur','parent','eleve'])],
             'classe_id' => ['nullable','integer','exists:classes,id'],
             'parent_id' => [
@@ -86,8 +90,8 @@ class UserController extends Controller
         $user->nom = $validated['nom'];
         $user->prenom = $validated['prenom'];
         $user->email = $validated['email'];
-        if (!empty($validated['password'])) {
-            $user->password = Hash::make($validated['password']);
+        if (!empty($validated['mot_de_passe'])) {
+            $user->mot_de_passe = Hash::make($validated['mot_de_passe']);
         }
         $user->role = $validated['role'];
         $user->classe_id = $validated['classe_id'] ?? null;

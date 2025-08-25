@@ -11,7 +11,7 @@ class GradeController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth:sanctum');
+        $this->middleware('auth');
     }
 
     // Récupérer les notes selon le rôle de l'utilisateur

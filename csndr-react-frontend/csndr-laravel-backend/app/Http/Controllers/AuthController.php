@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
@@ -17,10 +18,12 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        // Compare with the standard 'password' column
         if ($user && Hash::check($request->password, $user->password)) {
-            $token = $user->createToken('auth_token')->plainTextToken;
-            return response()->json(['token' => $token, 'user' => $user], 200);
+            Auth::login($user);
+            return response()->json([
+                'message' => 'Connexion réussie',
+                'user' => $user
+            ]);
         }
 
         return response()->json(['message' => 'Identifiants incorrects'], 401);
@@ -28,7 +31,24 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Déconnecté'], 200);
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        
+        return response()->json(['message' => 'Déconnexion réussie']);
+    }
+
+    public function checkAuth()
+    {
+        if (Auth::check()) {
+            return response()->json([
+                'authenticated' => true,
+                'user' => Auth::user()
+            ]);
+        }
+        
+        return response()->json([
+            'authenticated' => false
+        ], 401);
     }
 }

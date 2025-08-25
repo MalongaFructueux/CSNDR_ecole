@@ -1,89 +1,64 @@
-import axios from 'axios';
+// Client API basé sur fetch (sessions via cookies)
+const BASE_URL = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL)
+  ? process.env.REACT_APP_API_URL
+  : 'http://127.0.0.1:8000/api';
 
-/**
- * Configuration de base pour Axios
- * 
- * Cette configuration définit :
- * - L'URL de base de l'API Laravel
- * - Les headers par défaut
- * - La gestion des erreurs
- * - La gestion des tokens d'authentification
- */
-const api = axios.create({
-    // URL de base de l'API Laravel - Configuration pour production et développement
-    baseURL: process.env.REACT_APP_API_URL || (
-        process.env.NODE_ENV === 'production' 
-            ? 'https://csndr-gestion.com/api'  // En production, utiliser le chemin relatif
-            : 'http://localhost:8000/api'  // En développement local
-    ),
-    
-    // Headers par défaut
-    headers: {
-        // Ne pas forcer le Content-Type ici pour permettre à FormData de définir multipart/form-data automatiquement
-        'Accept': 'application/json',
-    },
-    
-    // Timeout de 10 secondes pour les requêtes
-    timeout: 10000,
-});
+const buildHeaders = (body) => {
+  const headers = { Accept: 'application/json' };
+  if (body && !(body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
+};
 
-/**
- * Intercepteur pour ajouter le token d'authentification
- * 
- * Cet intercepteur ajoute automatiquement le token JWT
- * à toutes les requêtes si il existe dans le localStorage
- */
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
+async function request(method, path, body) {
+  const isForm = body instanceof FormData;
+  const options = {
+    method,
+    credentials: 'include',
+    headers: buildHeaders(body),
+    body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
+  };
 
-        // S'assurer que FormData est correctement envoyé en multipart/form-data
-        // Axios définira automatiquement le bon Content-Type (avec boundary) si on ne le force pas
-        if (config.data instanceof FormData) {
-            delete config.headers['Content-Type'];
-        } else if (config.method && config.method.toLowerCase() !== 'get') {
-            // Pour les payloads JSON (non-FormData), définir le Content-Type JSON
-            config.headers['Content-Type'] = 'application/json';
-        }
-        return config;
-    },
-    (error) => {
-        return Promise.reject(error);
+  let response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, options);
+  } catch (networkErr) {
+    // Harmoniser avec Axios: lever une erreur avec code et message
+    const error = new Error('Network Error');
+    error.code = 'ERR_NETWORK';
+    throw error;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+  const data = isJson ? await response.json().catch(() => null) : await response.text();
+
+  if (!response.ok) {
+    // Gestion similaire à l'intercepteur Axios
+    if (response.status === 401) {
+      // Rediriger vers /login pour les requêtes protégées
+      if (typeof window !== 'undefined') window.location.href = '/login';
     }
-);
+    const error = new Error((data && data.message) || `HTTP ${response.status}`);
+    error.response = { status: response.status, data };
+    throw error;
+  }
 
-/**
- * Intercepteur pour gérer les erreurs de réponse
- * 
- * Cet intercepteur gère :
- * - Les erreurs 401 (non authentifié)
- * - Les erreurs 403 (accès refusé)
- * - Les erreurs de réseau
- * - La redirection vers la page de connexion si nécessaire
- */
-api.interceptors.response.use(
-    (response) => {
-        return response;
-    },
-    (error) => {
-        // Gestion des erreurs d'authentification
-        if (error.response?.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
-        }
-        
-        // Gestion des erreurs d'accès refusé
-        if (error.response?.status === 403) {
-            console.error('Accès refusé:', error.response.data.message);
-        }
-        
-        return Promise.reject(error);
-    }
-);
+  // Retourner un objet type Axios { data, status, headers }
+  return {
+    data,
+    status: response.status,
+    headers: response.headers,
+  };
+}
+
+const api = {
+  get: (path) => request('GET', path),
+  post: (path, body) => request('POST', path, body),
+  put: (path, body) => request('PUT', path, body),
+  delete: (path) => request('DELETE', path),
+};
 
 // ============================================================================
 // ROUTES D'AUTHENTIFICATION
@@ -95,32 +70,6 @@ api.interceptors.response.use(
  * @returns {Promise} - Token JWT et informations utilisateur
  */
 export const login = (credentials) => api.post('/auth/login', credentials);
-
-/**
- * Inscription d'un nouvel utilisateur
- * @param {Object} userData - Données d'inscription
- * @returns {Promise} - Token JWT et informations utilisateur
- */
-export const register = (userData) => api.post('/auth/register', userData);
-
-/**
- * Vérification de disponibilité d'un email
- * @param {string} email - Email à vérifier
- * @returns {Promise} - Disponibilité de l'email
- */
-export const checkEmail = (email) => api.post('/auth/check-email', { email });
-
-/**
- * Récupération des parents disponibles pour inscription
- * @returns {Promise} - Liste des parents
- */
-export const getAvailableParents = () => api.get('/auth/available-parents');
-
-/**
- * Récupération des classes disponibles pour inscription
- * @returns {Promise} - Liste des classes
- */
-export const getAvailableClasses = () => api.get('/auth/available-classes');
 
 /**
  * Déconnexion d'un utilisateur
@@ -143,7 +92,7 @@ export const getUsers = () => api.get('/users');
  * @param {string} query - Terme de recherche
  * @returns {Promise} - Liste des utilisateurs correspondants
  */
-export const searchUsers = (query) => api.get(`/users/search?query=${query}`);
+export const searchUsers = (query) => api.get(`/users/search?query=${encodeURIComponent(query)}`);
 
 /**
  * Création d'un nouvel utilisateur

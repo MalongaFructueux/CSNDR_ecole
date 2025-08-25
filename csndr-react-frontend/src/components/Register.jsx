@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Mail, Lock, UserCheck, School, Users } from 'lucide-react';
+import api from '../services/api';
 
 /**
  * Composant d'inscription pour nouveaux utilisateurs
@@ -56,19 +57,12 @@ const Register = ({ onRegister }) => {
   const loadAvailableData = async () => {
     try {
       const [classesRes, parentsRes] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api'}/auth/available-classes`),
-        fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api'}/auth/available-parents`)
+        api.get('/auth/available-classes'),
+        api.get('/auth/available-parents')
       ]);
 
-      if (classesRes.ok) {
-        const classesData = await classesRes.json();
-        setClasses(classesData);
-      }
-
-      if (parentsRes.ok) {
-        const parentsData = await parentsRes.json();
-        setParents(parentsData);
-      }
+      setClasses(classesRes.data || []);
+      setParents(parentsRes.data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
     }
@@ -80,19 +74,11 @@ const Register = ({ onRegister }) => {
   const checkEmailAvailability = async () => {
     setEmailChecking(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api'}/auth/check-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: formData.email })
-      });
-
-      const data = await response.json();
-      setEmailAvailable(data.available);
+      const response = await api.post('/auth/check-email', { email: formData.email });
+      setEmailAvailable(response.available);
       
-      if (!data.available) {
-        setErrors(prev => ({ ...prev, email: data.message }));
+      if (!response.available) {
+        setErrors(prev => ({ ...prev, email: response.message }));
       } else {
         setErrors(prev => ({ ...prev, email: '' }));
       }
@@ -158,33 +144,21 @@ const Register = ({ onRegister }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api'}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
+      const response = await api.post('/auth/register', formData);
+
+      // Inscription réussie, appeler la fonction de callback
+      await onRegister({
+        user: response.user,
+        message: response.message
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Inscription réussie, appeler la fonction de callback
-        await onRegister({
-          token: data.token,
-          user: data.user
-        });
-      } else {
-        // Gérer les erreurs de validation du serveur
-        if (data.errors) {
-          setErrors(data.errors);
-        } else {
-          setErrors({ general: data.message || 'Erreur lors de l\'inscription' });
-        }
-      }
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
-      setErrors({ general: 'Erreur de connexion au serveur' });
+      // Gérer les erreurs de validation du serveur
+      if (error.response?.errors) {
+        setErrors(error.response.errors);
+      } else {
+        setErrors({ general: error.response?.message || error.message || 'Erreur lors de l\'inscription' });
+      }
     } finally {
       setLoading(false);
     }
@@ -446,13 +420,12 @@ const Register = ({ onRegister }) => {
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Vous avez déjà un compte ?{' '}
-              <button
-                type="button"
-                onClick={() => window.location.href = '/login'}
+              <a
+                href="/login"
                 className="font-medium text-primary-600 hover:text-primary-500"
               >
                 Se connecter
-              </button>
+              </a>
             </p>
           </div>
         </form>
