@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+    Options -Indexes
+    Options +FollowSymLinks
+    RewriteEngine On
+
+    # Si votre backend est servi sous /backend, décommentez la ligne suivante
+    RewriteBase /backend/
+
+    # Ne pas réécrire si on cible déjà /public
+    RewriteRule ^public/ - [L]
+
+    # Rediriger la racine /backend vers /backend/public/
+    RewriteRule ^$ public/ [L]
+
+    # Rediriger toute autre requête vers /backend/public/... (évite les 404 blancs)
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>

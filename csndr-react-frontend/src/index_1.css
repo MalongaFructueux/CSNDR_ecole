@@ -1,0 +1,199 @@
+/* Typographie et base */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bleu-principal: #1D4ED8; /* Bleu vibrant */
+  --bleu-clair: #DBEAFE; /* Fond bleu doux */
+  --vert-accent: #10B981; /* Vert émeraude */
+  --vert-clair: #D1FAE5; /* Fond vert clair */
+  --rouge-erreur: #EF4444; /* Rouge saturé */
+  --gris-neutre: #6B7280; /* Gris doux */
+  --blanc-pur: #FFFFFF;
+  /* Thème sombre */
+  --background: var(--blanc-pur);
+  --text-color: var(--bleu-principal);
+  /* Image par défaut du header (libre de droits Unsplash) */
+  /* École/couloir scolaire */
+  --header-hero-image: url('https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=1600&auto=format&fit=crop');
+}
+
+[data-theme="dark"] {
+  --background: #1F2937;
+  --text-color: #F9FAFB;
+  --bleu-principal: #60A5FA;
+  --bleu-clair: #1E40AF;
+  --vert-accent: #34D399;
+  --vert-clair: #6EE7B7;
+  --rouge-erreur: #F87171;
+  --gris-neutre: #D1D5DB;
+  --blanc-pur: #1F2937;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  font-size: 16px; /* Taille de base augmentée */
+  line-height: 1.5;
+  color: var(--text-color);
+  background-color: var(--background);
+}
+
+h1 {
+  @apply text-3xl sm:text-4xl font-bold text-[var(--bleu-principal)];
+}
+h2 {
+  @apply text-2xl sm:text-3xl font-semibold text-[var(--bleu-principal)];
+}
+h3 {
+  @apply text-xl sm:text-2xl font-semibold text-[var(--bleu-principal)];
+}
+h4 {
+  @apply text-lg sm:text-xl font-medium text-[var(--bleu-principal)];
+}
+
+/* Classes utilitaires */
+@layer components {
+  .btn-primary {
+    @apply text-[var(--blanc-pur)] px-4 py-2 rounded-lg transition-all duration-200 text-sm sm:text-base font-medium;
+    background-color: var(--bleu-principal);
+  }
+  .btn-primary:hover {
+    background-color: rgba(29, 78, 216, 0.9); /* Opacité 90% pour --bleu-principal */
+  }
+  .btn-primary:active {
+    background-color: rgba(29, 78, 216, 0.8); /* Opacité 80% pour --bleu-principal */
+  }
+  .btn-secondary {
+    @apply text-[var(--bleu-principal)] px-4 py-2 rounded-lg border border-[var(--bleu-principal)] transition-all duration-200 text-sm sm:text-base font-medium;
+    background-color: var(--bleu-clair);
+  }
+  .btn-secondary:hover {
+    background-color: rgba(219, 234, 254, 0.8); /* Opacité 80% pour --bleu-clair */
+  }
+  .btn-secondary:active {
+    background-color: rgba(219, 234, 254, 0.7); /* Opacité 70% pour --bleu-clair */
+  }
+  .card {
+    @apply bg-[var(--blanc-pur)] rounded-xl shadow-lg p-4 sm:p-6 border-l-4 border-[var(--bleu-principal)] hover:shadow-xl transition-shadow duration-300;
+  }
+  .text-title {
+    @apply font-semibold text-[var(--bleu-principal)];
+  }
+  .text-body {
+    @apply text-[var(--gris-neutre)] text-sm sm:text-base leading-relaxed;
+  }
+  .input {
+    @apply w-full px-3 py-2 border border-[var(--gris-neutre)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--bleu-principal)] focus:border-[var(--bleu-principal)] transition-colors duration-200;
+  }
+  .input-icon {
+    @apply relative;
+  }
+  .input-icon input {
+    @apply pl-10;
+  }
+  .input-icon::before {
+    @apply absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--gris-neutre)];
+    content: '';
+  }
+  .input-icon.email::before {
+    content: '📧';
+  }
+  .input-icon.password::before {
+    content: '🔒';
+  }
+  
+  /* Badges de rôle */
+  .bg-role-admin {
+    background-color: #DC2626; /* Rouge pour admin */
+  }
+  .bg-role-professeur {
+    background-color: #059669; /* Vert pour professeur */
+  }
+  .bg-role-parent {
+    background-color: #2563EB; /* Bleu pour parent */
+  }
+  .bg-role-eleve {
+    background-color: #7C3AED; /* Violet pour élève */
+  }
+  
+  .border-role-admin {
+    border-color: #DC2626;
+  }
+  .border-role-professeur {
+    border-color: #059669;
+  }
+  .border-role-parent {
+    border-color: #2563EB;
+  }
+  .border-role-eleve {
+    border-color: #7C3AED;
+  }
+
+  /* Header avec image de fond + dégradé */
+  .header-hero {
+    /* Couche 1: dégradé semi-transparent, Couche 2: image */
+    background-image: linear-gradient(90deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.30) 60%, rgba(0,0,0,0.15) 100%), var(--header-hero-image);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    /* Couleur de repli si l'image ne se charge pas */
+    background-color: #1E3A8A; /* bleu profond */
+    /* Hauteur auto car c'est un nav sticky, padding déjà géré dans le composant */
+  }
+}
+
+/* Animations */
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-modal-enter {
+  animation: modal-enter 0.3s ease-out;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.animate-toast-enter {
+  animation: toast-enter 0.3s ease-out;
+}
+
+/* Responsivité */
+@media (max-width: 640px) {
+  /* Version mobile : cadrage haut et dégradé plus prononcé pour lisibilité */
+  .header-hero {
+    background-position: top center;
+    background-image: linear-gradient(180deg, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.15) 100%), var(--header-hero-image);
+  }
+  .responsive-table {
+    @apply block overflow-x-auto;
+  }
+  .responsive-table thead {
+    @apply hidden;
+  }
+  .responsive-table tbody tr {
+    @apply block mb-4 border-b;
+  }
+  .responsive-table tbody td {
+    @apply block text-left pl-24 relative;
+  }
+  .responsive-table tbody td:before {
+    @apply absolute left-4 font-semibold text-title;
+    content: attr(data-label);
+  }
+}
+/* hello */
