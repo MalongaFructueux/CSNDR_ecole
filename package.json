@@ -1,0 +1,10 @@
+{
+  "name": "csndr-final",
+  "private": true,
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  },
+  "scripts": {
+    "build:css": "npx tailwindcss -i ./public/assets/css/input.css -o ./public/assets/css/tailwind.css --minify"
+  }
+}
